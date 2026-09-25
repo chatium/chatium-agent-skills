@@ -1,213 +1,167 @@
 ---
-title: Chatium AI Agents SDK — отправка сообщений агентам и управление цепочками из кода воркспейса
-description: Using the Chatium AI Agents SDK (@ai-agents/sdk/process) — отправка сообщений агентам, управление цепочками, directOutputTool, отделы (departments), контекст тулов. Применяй, когда пишешь код воркспейса, который запускает агентов, шлёт им сообщения, читает историю цепочек или управляет их жизненным циклом.
+title: Агенты Chatium и SDK в Git-аккаунтах
+description: Создание и настройка агентов, воркспейсы, версии в Git-ветках, стабильный agentId, запуск диалогов, отделы, инструменты и получение ответа через SDK.
 ---
 
-# Chatium AI Agents SDK — Skill
+# Агенты и SDK в Git-аккаунтах
 
-> Руководство по программному управлению AI-агентами Chatium из кода воркспейса.
-> Импорт: `import { ... } from '@ai-agents/sdk/process'`. Все функции первым аргументом принимают `ctx` и вызываются внутри хендлера (`app.function` / `app.get/post` / `app.job` / хук).
+Агент ведёт разговоры с историей, вызывает инструменты и может работать автономно. Его поведение задаётся конфигурацией в файле `*.agent.json`; SDK запускает разговоры и управляет их состоянием.
 
----
+Основной серверный импорт — `@ai-agents/sdk/process`. Вызывай функции с настоящим `ctx` внутри обработчика платформы. Точные параметры, возвращаемые типы и доступные экспорты читай в typings этого пакета в текущем проекте. Здесь описаны выбор метода и поведение, а не полный справочник интерфейсов.
 
-## 1. Что такое агент
+## Создать или изменить агента
 
-**Агент** — LLM-воркер, описанный конфигом (`XXX.agent.json` в воркспейсе), который ведёт разговоры («цепочки») с пользователями, умеет вызывать инструменты, может работать автономно и реагировать на события.
+Создай файл, например `support/main.agent.json`:
 
-Конфиг задаёт: `title`, `instructions[]`, `model`, `temperature`, `enabledTools[]`, `nativeTools`, `waitingToolEnabled` (автономность), `goal`, лимиты токенов и т.д. (тип/схема — `JsonAgentConfig` / `JsonAgentConfigSchema`).
+```json
+{
+  "title": "Помощник поддержки",
+  "instructions": [
+    "Помогай пользователю разобраться с продуктом.",
+    "Если данных не хватает, задай уточняющий вопрос."
+  ],
+  "enabledTools": [],
+  "waitingToolEnabled": false
+}
+```
 
-### Два режима
-- **Standalone** — одна роль ведёт весь диалог сама. Поддерживает `goal`, автономность, распределение по дочерним агентам.
-- **Department (отдел)** — агент-**оркестратор** с массивом inline-**специалистов**. Оркестратор — единственная точка входа, сам клиенту не пишет, а делегирует задачи специалистам через тул `call-agent`. Специалисты: `LLM` (модель + тулы) и `mailer` (только текст рассылок). У отделов нет `goal`.
+`instructions` в файле конфигурации — массив строк. Модель, лимиты, автономность, базы знаний и прочие настройки добавляй по актуальной схеме `JsonAgentConfigSchema`. Модели выбирай из `findModelsList`, ссылки на инструменты получай через SDK. Минимальный конфиг выше не настраивает доставку ответа во внешний чат: выбери транспорт или `directOutputTool`, как описано ниже.
 
----
+В Git-аккаунте создание, изменение и удаление конфигурации выполняются изменением исходных файлов. После публикации успешной сборки агент синхронизируется автоматически; писать собственный хук синхронизации не требуется. Проверяй конфигурацию по доступной в проекте схеме/валидатору и затем проверяй поведение опубликованной версии.
 
-## 2. Ключевые концепты
+Не добавляй в конфигурацию придуманные `id` или `key` для регистрации агента. `agentId` выдаёт платформа; получи его через SDK после синхронизации. Для дальнейших вызовов используй этот ID.
 
-| Термин | Что это |
-|---|---|
-| **Chain (цепочка)** | Один тред-разговор пользователь↔агент. Имеет состояние, историю, счётчик токенов, контекст. |
-| **chainKey** | Идентификатор разговора (обычно один на пару «пользователь + агент»). Под одним `chainKey` у агента живёт ровно одна цепочка; смена ключа создаёт другой разговор. |
-| **chainId** | Внутренний id цепочки (после создания). |
-| **Message** | Сообщение истории. Хранится как `llmMessages` — массив блоков Anthropic-style (`text` / `tool_use` / `tool_result` / `image` / …). |
-| **wakeAgent** | Флаг при push'е: `true` — рантайм сразу прогонит ход агента; `false` — сообщение ляжет в очередь без запуска. |
-| **Состояния цепочки** | `waiting`, `generating`, `sleeping`, `blocked`, `stopped`, `redirected`, `error` и др. |
+### Воркспейс
 
----
+Воркспейс — папка с `.workspace.json` (минимальное содержимое — `{}`). Для файла агента используется ближайший родительский воркспейс. Например, `support/.workspace.json` объединяет `support/main.agent.json`, обработчики и инструменты под `support/`.
 
-## 3. Создание и настройка агентов
+Агент может находиться вне воркспейса. Его можно находить и запускать по `agentId`, но инструменты с `isWorkspaceTool: true` ему недоступны. SDK-операции, которым нужен текущий воркспейс, возвращают явную ошибку `Agent is not a workspace agent: no .workspace.json found`, если у вызывающего модуля его нет.
 
-Эта статья описывает **runtime-управление** уже существующими агентами. Для создания или изменения `*.agent.json` используй доступный в проекте инструмент настройки агентов и его валидацию; не собирай конфиг по этой runtime-документации.
+### Отдел
 
----
+Отдел тоже описывается одним `*.agent.json`: в нём есть `department.specialists`. Единственный `agentId` принадлежит руководителю; специалисты встроены в его конфиг и имеют локальные `id`, а не отдельные agentId. Задавай стабильные ID специалистам, к которым будет обращаться код.
 
-## 4. Отправка сообщений и запуск ходов
+Руководитель делегирует работу специалистам. LLM-настройки и инструменты специалиста задаются у самого специалиста. У руководителя отдельная схема: не переноси туда standalone-поля `model`, `temperature`, `enabledTools`, `nativeTools` или `goal`. `department.sharedContext` добавляет общий контекст специалистам. Специалист `type: 'mailer'` предназначен для рассылок и не принимает LLM-настройки.
 
-### Связка агента с транспортом
+В SDK передавай ID руководителя; `specialistId` выбирает конкретного специалиста для хода. Он должен существовать в конфигурации текущей ветки.
 
-Не реализуй связку агента с транспортом через хук `@sender/message-received` по умолчанию. Это кастомная интеграция, а не стандартный путь подключения агента к мессенджеру.
+## Git-ветки и состояние
 
-Стандартный сценарий: дай пользователю ссылку `/app/sender`, попроси выбрать нужный транспорт, открыть раздел **Приложение** и связать агента с этим транспортом в интерфейсе Сендера. Так Сендер сам будет доставлять входящие сообщения в цепочку агента и управлять транспортной интеграцией.
+- В обычном контексте используется `main`; в preview — гит ветка. Способ открыть preview описан в [основном скилле](../../SKILL.md#publishing-and-branch-preview).
+- Один агент имеет стабильный `agentId`, но разные конфиги и пути в разных ветках. Merge переносит конфигурацию, не создавая новый ID для того же агента. Созданный в preview агент становится доступен в main после merge с прежним ID.
+- Связь с исходником строится по пути файла. Сохранение ID при переносе опирается на распознанный Git rename: используй `git mv` и проверяй diff.
+- Удаление файла делает агента недоступным в этой ветке; другие ветки продолжают использовать свои версии.
+- **Цепочки и история общие между ветками.** Preview не создаёт отдельную копию разговоров. Для независимого тестового диалога используй отдельный `chainKey`.
+- **Пауза общая по `agentId`.** Она хранится отдельно от Git-конфига; изменение `isPaused` в файле не управляет паузой уже работающего агента. Пауза из preview влияет и на main.
 
-Писать свой обработчик `@sender/message-received` стоит только при явной необходимости кастомной логики, например:
-- нестандартная обработка текста входящих сообщений до передачи агенту;
-- проверка доступов, ролей, подписок или ограничений перед запуском агента;
-- детерминированная обработка кнопок, команд, deeplink/start-параметров или специальных сценариев;
-- маршрутизация между несколькими агентами или сервисами по правилам, которые нельзя выразить стандартной связкой в интерфейсе.
+В интерфейсе `/app/agent-process` конфигурация агента доступна только для чтения: создание, редактирование и удаление агента отключены, settings embed недоступен. Управление разговорами и переключатель паузы продолжают работать. Навигации из этой страницы в редактор воркспейса нет.
 
-Если такой причины нет, не пиши хук и не делай ручной `pushMessageToChain*` для входящих сообщений транспорта: направь пользователя в `/app/sender` и настрой связь агент↔транспорт через UI.
+### Что нельзя делать через SDK в Git
 
-Основной способ «общаться» с агентом — положить сообщение в цепочку и (опц.) разбудить агента. Ход **асинхронный**: функция возвращается сразу. `wakeAgent: false` накапливает контекст без немедленного ответа; затем разбуди агента отдельным push или `unsleepChain`.
+`getOrCreateAgentForWorkspace`, `updateAgentById`, `updateAgentByKey` и попытки создать/изменить агента через `agentParams` завершаются ошибкой `Agent configuration is read-only in Git accounts`. Даже существующий агент не делает `getOrCreateAgentForWorkspace` допустимым способом чтения.
 
-### `pushMessageToChainByContacts(ctx, params)` — **основной метод** `@public`
-Резолвит цепочку по **контактам клиента**: SDK мёрджит контакты в одного CRM-клиента и находит/создаёт под него одну цепочку для агента. Приоритетный способ — когда есть email/телефон/uid, а не готовый `chainKey`.
+Для нового кода сначала найди агента, затем вызывай runtime-операции по `agentId`. Варианты отправки по `agentKey` применимы только к существующему ключу и без изменения конфигурации; имя файла конфигурации само по себе таким ключом не является.
 
-Поля: `agentId`, `contacts: [{ type, value }]`, `messageText`, `wakeAgent`, `files?`, `createChainIfNotExists?`, `chainParams?` (`{ title, userId, uid, userProfile, chainMeta }`), `toolContext?` (произвольные данные для тулов — см. §5), `specialistId?`, `directOutputTool?`, `generationOptions?`. Возвращает `{ chainId }`.
+## Найти агента и начать разговор
+
+Не смешивай три идентификатора:
+
+| Значение | Назначение |
+| --- | --- |
+| `agentId` | Стабильный ID агента для runtime-операций |
+| `agent.key` | Ключ, возвращённый платформой; не путь файла и не его имя |
+| `workspaceAgentKey` | Имя файла без `.agent.json` в результате поиска по воркспейсу: для `main.agent.json` это `main` |
+
+Из серверного обработчика внутри `support/` можно найти агента примера и отправить ему сообщение:
 
 ```ts
-await pushMessageToChainByContacts(ctx, {
-  agentId,
-  contacts: [{ type: 'email', value: 'user@example.com' }, { type: 'phone', value: '+12025550100' }],
-  messageText: 'Ваш вебинар начинается через час!',
+import { findCurrentWorkspaceAgents, pushMessageToChain } from '@ai-agents/sdk/process'
+
+const agents = await findCurrentWorkspaceAgents(ctx)
+const agent = agents.find(item => item.workspaceAgentKey === 'main')
+if (!agent) throw new Error('Агент main не найден в текущем воркспейсе и ветке')
+
+const { chainId } = await pushMessageToChain(ctx, {
+  agentId: agent.id,
+  chainKey: 'support-demo',
+  messageText: 'Помоги разобраться с настройкой продукта',
   wakeAgent: true,
-  createChainIfNotExists: true,
 })
 ```
 
-### `pushMessageToChain(ctx, params)` `@public`
-Когда есть собственный стабильный идентификатор разговора — резолв по `(agentId, chainKey)` **или** `(agentId, chainId)`. Поля: `agentId`, `chainKey` **или** `chainId`, `messageText`, `wakeAgent`, `files?`, `createChainIfNotExists?` + `chainParams?` (`{ title, model, userId, uid, userProfile, chainMeta, senderChatId }`), `specialistId?`, `directOutputTool?`, `generationOptions?`. Возвращает `{ chainId, chainKey }`.
+В приложении выбирай `chainKey` из устойчивой идентичности разговора, например клиента или заявки. Одинаковый ключ у одного агента продолжает прежнюю цепочку; новый ключ начинает другую. `chainId` — ID уже созданной цепочки. Для агента вне воркспейса используй поиск по аккаунту и `findAgentById`.
 
-### `pushMessagesToChainByContacts(ctx, params)` `@public`
-**Batch**: несколько сообщений/задач в **одну** цепочку клиента за один вызов. CRM-резолв делается один раз, дальше каждый элемент `messages[]` уходит отдельным push'ем в ту же цепочку. Рантайм **сериализует** обработку: следующее сообщение берётся только после завершения предыдущего хода — порядок в массиве = порядок обработки. Поля: `agentId`, `contacts`, `wakeAgent`, `createChainIfNotExists?`, `chainParams?`, `messages: [{ messageText, files?, specialistId?, directOutputTool?, generationOptions? }]`. Возвращает `{ chainId, pushedCount }`.
+Отправка асинхронная: возврат `chainId` подтверждает приём сообщения, а не готовность ответа. `wakeAgent: true` запрашивает обработку с учётом очереди и состояния агента. `false` добавляет сообщение без запуска. Не записывай историю или состояние цепочки напрямую в обход SDK.
 
-### Как агент отвечает пользователю: `sendMessageToChat` и `chatId`
-Обычно агент общается с пользователем **через тул `sendMessageToChat`** (или его варианты с задержкой) — он отправляет сообщение в чат **по `chatId`**. Чтобы агент мог ответить, ему нужно **знать `chatId`**, в который писать.
+## Выбор SDK-метода
 
-Самый надёжный способ дать агенту `chatId` — **положить его в `messageText`** того push'а, который ты делаешь: текст попадает в историю, агент его читает и передаёт в `sendMessageToChat`. Без известного агенту `chatId` он физически не сможет доставить ответ пользователю.
+Следующие операции доступны для агентов в Git-аккаунтах; их обычные проверки доступа продолжают действовать.
+
+| Задача | Методы и поведение |
+| --- | --- |
+| Найти агента в аккаунте | `findAgents` — поиск; `findAgentsList` — список с метаданными; `findAgentById` — чтение по ID |
+| Найти агентов воркспейса | `findCurrentWorkspaceAgents` — воркспейс вызывающего модуля; `findWorkspaceAgents` — воркспейс указанного модуля (в Git передаётся путь модуля); `findAgentsLinkedToWorkspace` — по настоящему ID воркспейса Start |
+| Работать с уже известным ключом | `findAgent` читает runtime по ключу агента; `findAgentByKey` ищет SDK-ключ в текущем воркспейсе. Это разные способы адресации, не поиск по имени файла конфигурации |
+| Отправить сообщение в произвольный разговор по `chainKey` | `pushMessageToChain` — по `agentId` и `chainKey` либо `chainId` |
+| Отправить сообщение в разговор по клиенту (через контакты клиента) | `pushMessageToChainByContacts` — объединяет контакты через CRM и находит/создаёт цепочку. Удобен, когда известны email/телефон/telegramId/другие контакты |
+| Отправить несколько сообщений в разговор с клиентом | `pushMessagesToChainByContacts` — один CRM-резолв и последовательная обработка сообщений в одной цепочке |
+| Найти цепочки | `findChainById`, `findChainsByKey`, `findChainsBy`; `getAgentChains` и `getAgentChainsCount` — цепочки конкретного агента |
+| Читать историю и очередь | `getChainMessages` — обработанная история; `getChainPendingMessages` — ещё не обработанные сообщения |
+| Управлять ожиданием и остановкой | `sleepChain`, `sleepChainForever`, `unsleepChain`, `stopChain`, `blockChain` |
+| Проверить отложенные действия | `fastForwardChainTo` — отладочная перемотка времени цепочки с выполнением наступивших действий; используй на тестовой цепочке |
+| Передать разговор другому агенту | `redirectChain`, `redirectChainByContacts`; для отдела используй ID руководителя |
+| Управлять связью с каналом | `linkAgentToChannel`, `isAgentLinkedToChannel`, `unlinkAgentFromChannel` |
+| Найти инструменты, инструкции и модели | `getAllAvailableTools`, `findWorkspaceTools`, `findInstructionsList`, `findModelsList` |
+| Получить ссылку на инструмент | `getEnabledToolEntry` — канонический ref для `enabledTools` или `directOutputTool` |
+| Защитить клиентскую ссылку на агента | `generateAgentToken`, `validateAgentToken` — выдача и серверная проверка токена, в том числе с привязанным payload |
+
+У методов разные формы результата: проверяй typings и `success`, если метод возвращает эту обёртку. У успешного `getChainMessages` сообщения находятся в `result.messages`, у `getChainPendingMessages` — в `result.pendings`; слоя `value` нет. `llmMessages` содержит структурированные блоки текста и вызовов инструментов, а не одну строку ответа.
+
+Наличие экспорта в typings не отменяет ограничения вызывающего приложения: например, `increaseChainTokensSpent` доступен только Start и не предназначен для кода обычного аккаунта.
+
+## Инструменты агента
+
+Регистрация инструмента делает его доступным для выбора, но включается он через `enabledTools` в конфигурации агента. Получи каталог `getAllAvailableTools`, возьми `nativeJson` нужного инструмента и преобразуй через `getEnabledToolEntry` с путём воркспейса агента. Сохрани полученный ref в файл; не придумывай `accountId`, `path` и `pattern` вручную.
+
+Для агента без воркспейса не передавай `workspacePath`: ссылка должна быть `isWorkspaceTool: false`. Пустая строка `''` означает корневой воркспейс, а не отсутствие воркспейса. Для разработки самих инструментов прочитай [Инструменты AI](tools.md).
+
+## Доставка ответа
+
+### Чат и транспорт
+
+Для стандартного подключения к мессенджеру направь пользователя в `/app/sender`: выбрать транспорт, открыть **Приложение**, связать агента. Sender сам доставляет входящие сообщения агенту. Не создавай дополнительно `@sender/message-received` и ручную пересылку тех же сообщений.
+
+Собственный Sender-хук нужен при конкретной задаче: нестандартная маршрутизация, проверка доступа, обработка команд или преобразование входящего сообщения. Для такого сценария используй публичный SDK и [Sender webhooks](../sender/webhooks.md); не копируй внутренние обработчики agent-process. Устаревший `pushMessageToChainFromSender` не выбирай основой новой интеграции.
+
+В ручной интеграции настрой инструмент доставки ответа. Если модель должна вызывать `sendMessageToChat`, ей нужен `chatId` в доступном тексте, например в `messageText`. Одного `chainParams.senderChatId` недостаточно: это runtime-контекст для инструментов. Для веб-чата на странице прочитай [Веб-чат](../chat-client.md).
+
+### directOutputTool
+
+Используй `directOutputTool`, когда результат хода нужно передать в свою серверную функцию. SDK всё равно возвращается до завершения генерации; результат придёт в целевой обработчик.
+
+Целью может быть ссылка на `app.function` или канонический ref включённого инструмента. Прямая ссылка на функцию не требует регистрации этой функции как инструмента агента. Функция принимает контракт `{ context, input }`, описанный в [Инструментах AI](tools.md).
 
 ```ts
-await pushMessageToChainByContacts(ctx, {
-  agentId, contacts, wakeAgent: true,
-  messageText: `Пользователь (chatId: ${chatId}) спрашивает: ${userQuestion}`,
-})
-```
-
-> `chainParams.senderChatId` **агенту-модели в рантайме не виден** — он доступен только тулам через `body.context.senderChatId`. Поэтому, если агент сам решает, кому писать, `chatId` должен быть в истории сообщений (т.е. в `messageText`).
-
----
-
-## 5. Per-turn опции генерации
-
-Применяются к ближайшему ходу и очищаются после.
-
-### `directOutputTool: DirectOutputToolConfig` `@public`
-**Synthetic tool call.** Ты заранее знаешь, что результат хода должен «уйти» в конкретный тул/функцию. На этом turn'е рантайм добавляет в системный промпт указание про формат финального текста; когда completion завершается **финальным текстом**, рантайм оборачивает его в синтетический `tool_use`, **вызывает целевой тул/функцию с этим текстом как input** и пишет `tool_result` в историю. Снаружи выглядит так, будто агент сам вызвал тул.
-
-**Что можно указать в `handler` — две формы:**
-
-1. **Существующий тул агента** — структурный ref `{ isWorkspaceTool?, accountId?, path, pattern }` (тот же формат, что в `enabledTools`; бери из `getEnabledToolEntry`). Например, `sendMessageToChat`: текст модели станет input'ом этого тула и уйдёт сообщением в чат. Резолвится через `findTool` среди **включённых** тулов агента.
-
-2. **Произвольная `app.function`** — передаёшь ссылку на функцию напрямую (она НЕ обязана быть тулом агента). Рантайм вызовет её по ссылке тем же контрактом, что и тул: `handler.run(ctx, { context, input })`. Так ты получаешь сгенерированный агентом текст в свою функцию и делаешь с ним что угодно.
-
-**Как писать целевую `app.function`** (контракт `{ context, input }`):
-```ts
-export const myDirectOutputTarget = app
-  .function('my-direct-output-target')
-  .body(s => ({
-    context: s.object({ chainId: s.string() }, { additionalProperties: true }),
-    input: s.object({ message: s.string() }, { additionalProperties: true }),
-  }))
-  .handle(async (ctx, body) => {
-    const text = body.input.message       // сгенерированный агентом текст
-    const { chainId } = body.context
-    // ...делаешь с текстом что нужно
-    return { ok: true }
-  })
-
-// использование:
-await pushMessageToChainByContacts(ctx, {
-  agentId, contacts, wakeAgent: true,
-  messageText: 'Сгенерируй приветственное письмо',
+await pushMessageToChain(ctx, {
+  agentId,
+  chainKey,
+  messageText: 'Подготовь краткое резюме разговора',
+  wakeAgent: true,
   directOutputTool: {
-    handler: myDirectOutputTarget,   // ссылка на app.function (есть .run/.toJSON)
-    contentField: 'message',         // весь текст модели → input.message
+    handler: saveSummary,
+    contentField: 'text',
   },
 })
 ```
 
-**Маппинг вывода модели в `input`:**
-- `contentField: string` — весь текст уходит в `input[contentField]`.
-- `contentSections: string[]` — мульти-поле: модель оборачивает каждую секцию в XML-тег `<name>…</name>`, парсер кладёт содержимое в `input[name]` (имена секций = теги = имена input-полей).
-- `extraInput: Record<string, any>` — доп. поля, попадают в `input` буквально (агент видит их в синтетическом `tool_use` в истории).
-- `context: Record<string, any>` — доп. контекст в `body.context` целевой функции, но **НЕ** в `input` → агент его не видит (для скрытых данных: id кампании, секреты). Runtime-поля контекста (см. ниже) приоритетнее и не затираются.
+Здесь `saveSummary` — объявленная в приложении `app.function`; сгенерированный текст попадёт в `body.input.text`. Рантайм запишет синтетическую пару `tool_use` / `tool_result` в историю. Доставка происходит при завершении хода финальным текстом; обычный вызов инструмента моделью ещё не является таким завершением.
 
-**Доступ к тулам на directOutput-ходе (`tools?`):**
-- **По умолчанию тулы доступны** — модель может вызывать тулы для подготовки ответа и затем написать финальный текст.
-- `{ enabled: false }` — все тулы выключены (модель только пишет текст).
-- `{ enabled: true, exclude: ['toolName'] }` — доступны все, кроме перечисленных по `name`.
-- Синтетический вывод срабатывает **только** когда ход завершается финальным текстом; если модель вызвала тул — идёт обычный tool-call path.
+Подготовительные инструменты доступны по умолчанию. Для режима только генерации текста их можно выключить через `directOutputTool.tools`. Настройки отображения, разбиения ответа и потоковых callbacks смотри в `DirectOutputToolConfig`.
 
-**Прочее:** `toolDisplayName?` — имя в синтетическом `tool_use`; `outputFormat?: 'markdown' | 'plain'` — формат вывода (подсказка модели + пост-обработка).
+`generationOptions` меняет параметры ближайшего хода, `specialistId` направляет его специалисту отдела. Эти опции не редактируют файл конфигурации агента. Данные для инструментов передавай через `chainContext` или `toolContext` в поддерживающем их методе; контекст directOutput-цели — через `directOutputTool.context`. Эти данные сами по себе не становятся текстом, видимым модели.
 
-### Что доступно тулу в `body.context`
-Поля runtime-контекста и контракт результата описаны в [Инструментах AI](tools.md#body-context-и-input); читай при реализации целевой функции.
+## Проверить результат в ветке
 
-> Свои данные пробрасывай тулам через `toolContext` при push'е (`*ByContacts`) — тул прочитает их в `body.context.chainContext`. Либо через `directOutputTool.context` (скрыто от модели, только для directOutput-цели). Runtime-поля имеют приоритет и не затираются твоими.
+Проверь найденный `agentId` и текущую версию конфига, запусти отдельную тестовую цепочку и дождись сохранённого ответа или ошибки. Для переименования/merge сравни ID до и после и проверь продолжение прежней цепочки.
 
-### `generationOptions: GenerationOptions` `@public`
-Override параметров генерации на ход. Актуальную форму импортируй как `GenerationOptions` из `@ai-agents/sdk/process`; она независима от `directOutputTool`.
-
-### `specialistId: string`
-Department-routing: прогнать ход на конкретном специалисте отдела, минуя оркестратора.
-
----
-
-## 6. Чтение состояния
-
-### Цепочки
-- **`getChainMessages(ctx, { chainId, offset?, limit?, createdAtOrder? })`** `@public` — постранично читает сообщения → `{ success, value: { messages: ChainMessageDTO[] } }` либо `{ success: false, reason }`. `llmMessages` — блоки Anthropic-style. Department-поля (`producedByAgentId`, `parentCompletionId`, `pendingTaskId`) заполнены только в режиме отдела.
-- **`getChainPendingMessages(ctx, { chainId })`** `@public` — снимок неподхваченных pending-push'ей (дебаг).
-- **`findChainById(ctx, id)`** / **`findChainsByKey(ctx, key)`** / **`findChainsBy(ctx, where, options?)`** `@public`.
-- **`getAgentChains(ctx, { agentId, offset?, limit?, createdAtOrder? })`** / **`getAgentChainsCount(ctx, agentId)`** `@public`.
-
-### Агенты
-- **`findAgentById(ctx, agentId)`** `@public`.
-- **`findAgents(ctx, search?)`** `@public` — поиск по аккаунту (id/key/title/parentAgentId).
-- **`findCurrentWorkspaceAgents(ctx, { search? }?)`** `@public` — агенты текущего воркспейса (+`workspaceAgentKey` = имя `.agent.json`-файла).
-- **`findAgentsList(ctx)`** `@public` — список `{ id, key, title, parentAgentId, distribution* }`.
-- **`findAgentsLinkedToWorkspace(ctx, workspaceId)`** `@public`.
-
----
-
-## 7. Управление жизненным циклом цепочки
-
-- **`sleepChain(ctx, chainId, sleepUntil: Date)`** `@public` — усыпить до даты.
-- **`sleepChainForever(ctx, chainId)`** `@public` — усыпить бессрочно.
-- **`unsleepChain(ctx, chainId)`** `@public` — разбудить.
-- **`blockChain(ctx, chainId)`** `@public` — заблокировать (агент больше не реагирует).
-- **`stopChain(ctx, chainId)`** `@public` — остановить.
-- **`redirectChain(ctx, { fromAgentId, toAgentId, chainKey, copyChainParams?, messageText? })`** `@public` — передать цепочку другому агенту.
-
----
-
-## 8. Каналы (transport)
-
-Для встраивания Vue-чата с агентом на страницу прочитай [Веб-чат](../chat-client.md).
-
-- **`linkAgentToChannel(ctx, { agentId, channelId })`** `@public`.
-- **`isAgentLinkedToChannel(ctx, { agentId, channelId })`** `@public`.
-- **`unlinkAgentFromChannel(ctx, { agentId, channelId })`** `@public`.
-
----
-
-## 9. Инструменты, инструкции, модели
-
-Для создания или обновления тула прочитай [Инструменты AI](tools.md). Канонические `enabledTools`/directOutput refs получай через SDK, не собирай вручную.
-
-- **`getAllAvailableTools(ctx)`** `@public` — каталог: `{ tools: [{ path, name, description, llmDescription, appName, workspacePath, isAccountTool, nativeJson }] }`.
-- **`getEnabledToolEntry(ctx, nativeJson, workspacePath?)`** `@public` — `nativeJson` тула → канонический ref `{ accountId?, isWorkspaceTool, path, pattern }` (формат для `enabledTools` и для `directOutputTool.handler`-дескриптора).
-- **`findWorkspaceTools(ctx)`** `@public` — тулы текущего воркспейса.
-- **`findInstructionsList(ctx)`** `@public` — переиспользуемые блоки инструкций.
-- **`findModelsList(ctx)`** `@public` — доступные модели.
-
----
+При проверках через [chatium exec](../../exec.md) не считай локальный `git switch` доказательством preview-контекста SDK. Проверь `ctx.env.useScopedPreviewMode`; если нужной ветки там нет, проверяй через настоящий HTTP-preview. Копия `ctx` с вручную подменённым `env` не заменяет платформенный контекст запроса.

@@ -38,12 +38,12 @@ Read the article matching the task directly. Follow links inside it only when th
 
 ### AI
 
-AI Agents runs LLM conversations with history and tools; standalone `startCompletion` from `@start/sdk` generates text, JSON or media with callback results.
+Agents run conversations with history and tools; their configuration lives in `*.agent.json` source files. In Git accounts, edit their configuration in source; use the agent SDK to run conversations. Standalone `startCompletion` from `@start/sdk` generates text, JSON or media with callback results.
 
 | Task | Reference |
 | --- | --- |
-| Run an existing agent, send messages, manage chains or departments, or connect a transport | [Agents](references/ai/agents.md) |
-| Receive an existing agent turn's output in your function via `directOutputTool` | [Agent direct output](references/ai/agents.md#directoutputtool-directoutputtoolconfig-public) |
+| Create or edit an agent or department, use agents in Git branches, run conversations, or connect a transport | [Agents and SDK](references/ai/agents.md) |
+| Receive an agent turn's output in your function via `directOutputTool` | [Agent direct output](references/ai/agents.md#directoutputtool) |
 | Run standalone generation with callbacks, native tools, images or video | [Generation](references/ai/generation.md) |
 | Create an agent tool, a direct-output function, or tools for `startCompletion` | [Tools](references/ai/tools.md) |
 
