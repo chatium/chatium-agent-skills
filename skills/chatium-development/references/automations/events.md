@@ -119,7 +119,7 @@ await captureCustomerEvent(ctx, {
 
 `CaptureCustomerEventInput` экспортируется из `@crm/sdk`. Укажи хотя бы один контакт через `contacts` или `appendUserContacts`; иначе результат содержит ошибку `no_contacts`. Проверяй `success` перед использованием результата.
 
-Для описания полей события в реестре используй [payloadMapping и fieldExpr](registry.md#поле-fieldexpr-в-payloadmapping). Это метаданные события, не аргументы `captureCustomerEvent`.
+Для описания полей события в реестре используй [payloadMapping и fieldExpr](registry.md#как-читать-реестр). Это метаданные события, не аргументы `captureCustomerEvent`.
 
 #### Результат captureCustomerEvent
 

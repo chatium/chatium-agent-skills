@@ -1,56 +1,76 @@
----
-title: Работа с автоматизациями, автоботами, автодействиями, автоинструментами, воронками, автосериями
-description: >
-  Изучи этот документ, если пользователь упоминает слова "автоматизация", "автобот", "автодействие", "автоинструмент", "воронка", "автосерия" или похожие, и хочет создать, отредактировать или понять автоматизацию (набор действий, которые выполняются при наступлении определенных событий).
----
+# Конфигурация автоматизации
 
-# Работа с автоматизациями, автоботами, автодействиями, автоинструментами, воронками, автосериями
+Создавай и редактируй `*.automationConfig.json` непосредственно в исходниках проекта. Субагент automation maker не требуется. Обычное место — каталог `automation/` текущего workspace; прежде чем добавлять файл, посмотри расположение существующих конфигов. Страница `AutomationsView` нужна только по запросу на интерфейс управления.
 
-Для конфигурации автоматизации используй доступный в проекте automation maker или automation-specific tool: формат зависит от зарегистрированных в аккаунте событий, действий и условий. Для их реализации загрузи [События](events.md), [Условия](conditions.md) или [Действия](actions.md).
+## Перед записью
 
-> **⚠️ ВАЖНО: Файлы конфигурации автоматизаций ОБЯЗАНЫ иметь расширение `.automationConfig.json`** (например `welcome-series.automationConfig.json`). Система распознаёт автоматизации именно по этому расширению. Файл с расширением `.json` или любым другим — работать НЕ будет.
+1. Определи событие запуска, последовательность действий, условия, задержки и источники данных для параметров. Уточни только действительно недостающие бизнес-решения.
+2. Получи актуальный реестр **того аккаунта и workspace**, где будет лежать конфиг: [как получить события, действия и условия](registry.md). Сверь точные `event.url`, `routeJson`, имена и обязательность входных параметров. Не составляй URL и `routeJson` по аналогии. Для новых действий и условий прочитай [actions.md](actions.md) и [conditions.md](conditions.md); для отсутствующего события — [events.md](events.md) и исходники места, где оно возникает.
+3. Если событие отсутствует, реализуй и зарегистрируй его в исходном workspace, если это входит в задачу и проект доступен. Если нет доступа к нужному проекту или неизвестно место возникновения события, запроси это у пользователя. Без зарегистрированного события не выдавай конфиг за рабочий.
+4. Если действия или условия нет, создай его в рамках задачи при доступном исходном проекте. Если реализация пока невозможна, допустим `draft` с точным контрактом и явной пометкой, что шаг не выполняется. Не заменяй неизвестный маршрут вымышленным.
 
-> Создавай и редактируй `.automationConfig.json` через automation-specific tool, который знает актуальный формат и реестр аккаунта. Если такого инструмента нет, не угадывай схему: ограничь изменение кодом событий, действий, условий или management UI и сообщи о недостающем инструменте.
+## Формат
 
-**Management UI is optional.** Add this page only when the task includes a UI for viewing and managing automations. First reuse an existing `AutomationsView` page; otherwise create `index.tsx` with this content. Configuring an automation alone does not require creating a page:
+Минимальный конфиг:
 
-```tsx
-import { requireAccountRole } from '@app/auth'
-import { jsx } from '@app/html-jsx'
-import { AutomationsView } from '@automations/sdk/components'
-import { UiHtmlLayout } from '@html/layout'
-
-app.html('/', async ctx => {
-  requireAccountRole(ctx, 'Admin')
-  return (
-    <UiHtmlLayout
-      head={
-        <>
-          <style>
-            {`body {
-              --auto-text: #111827;
-              --auto-muted: #6b7280;
-              --auto-bg: #f8fafc;
-              --auto-surface: #ffffff;
-              --auto-border: rgba(15, 23, 42, 0.1);
-              --auto-primary: #2563eb;
-              --auto-primary-hover: #1d4ed8;
-              --auto-error: #dc2626;
-
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-              color: var(--auto-text);
-              min-height: 100vh;
-              background-color: white;
-            }`}
-          </style>
-        </>
-      }
-    >
-      <link href="/s/static/lib/fontawesome/6.7.2/css/all.min.css" rel="stylesheet" />
-      <AutomationsView ctx={ctx} entryModule={ctx.entryModule} />
-    </UiHtmlLayout>
-  )
-})
+```json
+{
+  "title": "Напоминание об оплате",
+  "eventUrls": ["<точный URL из реестра>"],
+  "steps": [
+    {
+      "type": "continueCondition",
+      "id": "order_unpaid",
+      "conditionName": "Заказ не оплачен",
+      "conditionRoute": { "routeType": "function", "routeJson": [123, "orders/conditions", "/unpaid"] },
+      "params": { "orderId": { "$ref": "event.orderId" } }
+    }
+  ],
+  "settings": { "continueOnError": false },
+  "defaultTimezone": "Europe/Moscow"
+}
 ```
 
-This provides a UI to view and manage automations. Only create this file once — if it already exists, skip this step.
+Значения URL и `routeJson` в примере условные; в готовый файл копируй их из реестра. `title`, `description`, `settings`, `defaultTimezone` необязательны; `eventUrls` должен содержать хотя бы одно событие, `steps` — массив. ID шагов уникальны во всём конфиге. Не записывай обогащённые сервером `id`, `path`, `name`, `enabled`, `warning`, `updatedAt` в исходный JSON.
+
+| Тип шага | Основные поля | Поведение |
+| --- | --- | --- |
+| `action` | `id`, `actionName`, `actionRoute`, `params` | Вызывает зарегистрированное действие. `params` — объект, даже если пустой. |
+| `continueCondition` | `id`, `conditionName`, `conditionRoute`, опциональный `params` | При `satisfied: false` прекращает автоматизацию. |
+| `delay` | `id`, `delay` | Откладывает следующие шаги. |
+| `draft` | `id`, `draftType`, `draft`, опциональный `params` | Заглушка для ещё не реализованного шага; исполнитель её пропускает. |
+
+Используй `continueCondition` для линейной проверки; если нужны разные сценарии, создай отдельные автоматизации. Ветвящийся шаг `type: "condition"` не поддерживается современными типами и валидатором. `draftType: "condition"` означает заглушку для будущей проверки, а не ветку; другой допустимый `draftType` — `action`.
+
+Если требуется заглушка, опиши реализуемый контракт, например `{ "type": "draft", "id": "send_sms", "draftType": "action", "draft": { "name": "Отправить SMS", "description": "Отправить текст указанному номеру", "paramsSchema": { "phone": { "type": "string", "required": true }, "text": { "type": "string", "required": true } } } }`. До замены на зарегистрированное действие этот шаг будет пропущен.
+
+Задержка: `{ "type": "delay", "amount": 2, "units": "hours" }` (единицы: `seconds`, `minutes`, `hours`, `days`); `{ "type": "exactTime", "exactTime": "2026-10-01T10:00:00Z" }`; `{ "type": "waitForTime", "weekdays": ["monday"], "weekdayTime": "10:00" }`; `{ "type": "dateExpression", "dateExpression": "new Date(event.dueDate)" }`. Последнее вычисляется как JS-выражение с `event`, `user`, `customerContacts`, `steps`, `now`; проверяй его отдельно на реальных входных данных, если доступен runtime.
+
+## Маппинг параметров
+
+В конфиге указываются только параметры шага: `context` исполнитель передаёт сам. Для действия runtime формирует `{ context, params }`, для условия — `{ context, input }`; **в JSON ключ в обоих случаях называется `params`**.
+
+- Примитив (`"hello"`, `42`, `true`, `null`) — статическое значение.
+- `{ "$static": ["vip", "new"] }` — статический массив или объект; обычный вложенный объект без `$static` не интерполируется.
+- `{ "$ref": "event.orderId" }` — одно динамическое значение.
+- `{ "$template": "Заказ {{ event.orderId }}" }` — строка с подстановками.
+
+Объект со специальным ключом содержит ровно один из `$static`, `$ref`, `$template`. `$template` годится для строк, а не для чисел и массивов. `event.<key>` ссылается на **ключ `payloadMapping` зарегистрированного события**, а не на исходное поле метрики. Если триггеров несколько, проверь поле для каждого из них. `user.confirmedEmail` и `user.confirmedPhone` отличаются от несуществующих `user.email` и `user.phone`; данные пользователя могут отсутствовать. `steps.<id>.<field>` ссылается на результат ранее выполненного шага: проверь форму результата по коду или схеме действия. Не используй будущий или пропускаемый шаг как гарантированный источник данных.
+
+Строка с `{{ path }}` интерполируется и без `$template` (обратная совместимость); для новых конфигов явный `$template` понятнее. Чтобы передать фигурные скобки буквально, проверь ожидаемое поведение резолвера.
+
+`settings.continueOnError` по умолчанию `true` и реагирует на статус шага `failed`; возвращённое действием `{ success: false }` записывается как обычный результат с предупреждением. Для цепочек, где следующий шаг опасен после ошибки предыдущего, явно выбери `false`. Поля `retryPolicy: { maxAttempts, backoffMultiplier }`, `timeout` и `concurrency` объявлены в типах и принимаются валидатором, но в изученном исполнителе не используются. Не рассчитывай на их эффект без проверки актуальной версии runtime.
+
+## Проверка перед завершением
+
+Запусти локальный валидатор на каждом созданном или изменённом конфиге (пути к скиллу и проекту подставь из текущей среды):
+
+```sh
+python3 <skill-dir>/scripts/validate_automation.py <project>/automation/example.automationConfig.json --registry <registry-snapshot>.json
+```
+
+`--registry` принимает снимок `{ "events": [...], "actions": [...], "conditions": [...] }` из [реестра](registry.md). Он позволяет проверить зарегистрированные URL/маршруты, обязательные параметры и поля события. Если снимок недоступен, запускай проверку без него, затем вручную сверяй ссылки по доступным исходникам или инструментам и явно отмечай, что реестр целевого аккаунта не проверен. Исправь ошибки валидатора и запусти его повторно; предупреждения о неподтверждённых полях проверь по коду. Затем выполни доступные проверки проекта. Локальный скрипт не доказывает, что конфиг применён или исполняется в целевом аккаунте.
+
+## Интерфейс управления по запросу
+
+Если пользователь просит страницу управления, сначала найди существующий `AutomationsView` в проекте. При его отсутствии добавь защищённый для Admin HTML-маршрут с `AutomationsView` из `@automations/sdk/components` и подходящим layout проекта; передай компоненту `ctx` и `ctx.entryModule`. Конфигурация JSON сама по себе не требует новой страницы.

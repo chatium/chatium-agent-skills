@@ -57,7 +57,7 @@ Automations runs deterministic sequences after events: conditions check state, a
 | Check a business condition without side effects | [Conditions](references/automations/conditions.md) |
 | Create a reusable step with side effects | [Actions](references/automations/actions.md) |
 | Inspect registered events, actions, conditions and their schemas | [Registry](references/automations/registry.md) |
-| Configure a sequence or add its management UI with `AutomationsView` | [Configuration](references/automations/configuration.md) |
+| Create, edit, or validate a `.automationConfig.json` sequence; add its management UI when requested | [Configuration](references/automations/configuration.md) |
 
 ### Sender
 
