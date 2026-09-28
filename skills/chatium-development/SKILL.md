@@ -1,11 +1,11 @@
 ---
 name: chatium-development
-description: "Create and edit Chatium UGC application source: Vue and file-based routes, Heap, auth, storage, jobs, and platform SDK integrations for agents, messaging, automations, payments, analytics, media, CRM, and Google services. Excludes Chatium platform backend development."
+description: "Create and edit Chatium account and plugin code: Vue and file-based routes, Heap, auth, storage, jobs, and platform SDK integrations for agents, messaging, automations, payments, analytics, media, CRM, and Google services. Excludes Chatium platform backend development."
 ---
 
 # Chatium development
 
-Work on the requested application behavior in its existing source. Respond in the user's language. The references contain development conventions as well as platform API details; examples demonstrate mechanisms, not a required application structure.
+Work on the requested account or plugin behavior in its existing source. Respond in the user's language. The references contain development conventions as well as platform API details; examples demonstrate mechanisms, not a required project structure.
 
 Before working in a workspace or isolated module, read its `.CHATIUM-LLM.md` if present. When changing architecture, key functionality, or substantial project decisions, create or update that file, integrating information into its existing sections. Do not create a document per component or require documentation changes for a question-only response.
 
@@ -109,7 +109,8 @@ Use recorded ClickHouse data for traffic reports, funnels, ad spend, acquisition
 | Render a video stored in Chatium | [video.md](references/video.md) |
 | Translate UI strings or edit `*.lang.yml` files | [i18n.md](references/i18n.md) |
 | Save a customer form and capture its CRM/analytics event | [forms.md](references/forms.md) |
-| Create payments (including partial payments), receipts or saved-card charges, or handle payment callbacks | [payments.md](references/payments.md) |
+| Create payments, receipts or saved-card charges; list/count attempts or payments; handle payment callbacks or import historical payments | [payments.md](references/payments.md) |
+| Implement an external Pay provider, register full or partial transfers, or issue provider-side receipts | [payment-providers.md](references/payment-providers.md) |
 | Refund a payment or handle refund lifecycle hooks | [payment-refunds.md](references/payment-refunds.md) |
 | Create a PDF asynchronously from HTML or a URL | [pdf.md](references/pdf.md) |
 | Hash, sign, encrypt, or perform other cryptographic work | [crypto.md](references/crypto.md) |
