@@ -34,22 +34,34 @@ import {
 
 ### replyToInstagramComment
 
-Публичный ответ на комментарий в Instagram + опциональный Private Reply в Direct.
+Отвечает на комментарий публично, через Private Reply в Direct или обоими способами.
 
 ```typescript
 import { replyToInstagramComment } from '@meta/sdk'
 
+// Публичный ответ + Private Reply: сначала комментарий, затем Direct
 const result = await replyToInstagramComment(ctx, {
   channelExternalId: channel.externalId,
   comment_id: commentId,
   text: 'Спасибо за комментарий!',
-  private_reply_text: 'Привет! Отправил подробности в Direct.'  // опционально
+  private_reply_text: 'Привет! Отправил подробности в Direct.'
 })
 
 if (result.ok) {
-  // result.result — { comment_id, reply_id, text, private_reply }
+  // result.result — { comment_id, reply_id?, text?, private_reply? }
   // private_reply: { success: boolean, message_id?: string, error?: string } | undefined
 }
+```
+
+Чтобы отправить только публичный ответ, передайте `text` без `private_reply_text`.
+
+```typescript
+// Только Private Reply: публичный ответ под комментарием не создаётся
+const result = await replyToInstagramComment(ctx, {
+  channelExternalId: channel.externalId,
+  comment_id: commentId,
+  private_reply_text: 'Привет! Отправил подробности в Direct.'
+})
 ```
 
 **Параметры:**
@@ -58,14 +70,18 @@ if (result.ok) {
 |----------|-----|:------------:|----------|
 | channelExternalId | string | да | `channel.externalId` из webhook |
 | comment_id | string | да | ID комментария Instagram |
-| text | string | да | Текст публичного ответа на комментарий |
+| text | string | нет | Текст публичного ответа на комментарий; в типах SDK поле необязательное |
 | private_reply_text | string | нет | Текст Private Reply в Direct |
+
+Нужен хотя бы один из `text` и `private_reply_text`. Если не передать ни одного из них, метод вернёт ошибку. `text: ''` тоже вызывает ошибку: для отправки только в Direct поле `text` нужно полностью опустить.
 
 **Логика работы:**
 1. Находит Instagram-транспорт по `channelExternalId`, получает валидный токен
-2. Публикует публичный ответ на комментарий через Graph API
-3. Если передан `private_reply_text` — дополнительно отправляет Private Reply в Direct
-4. Возвращает информацию об опубликованном ответе и статус Private Reply (если был запрошен)
+2. Если передан `text`, публикует публичный ответ на комментарий через Graph API
+3. Если передан `private_reply_text`, отправляет Private Reply после публичного ответа или сразу, когда `text` отсутствует
+4. Возвращает результат выполненной операции; `reply_id` и `text` заполнены только при публичном ответе
+
+При запросе обоих ответов ошибка публикации комментария останавливает отправку в Direct (`ok: false`). Если публичный ответ успешен, а Private Reply нет, `ok` остаётся `true`; проверяйте `result.result.private_reply.success`. В режиме только Private Reply `ok` отражает результат его отправки.
 
 ---
 
