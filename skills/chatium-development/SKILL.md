@@ -110,6 +110,7 @@ Use recorded ClickHouse data for traffic reports, funnels, ad spend, acquisition
 | Translate UI strings or edit `*.lang.yml` files | [i18n.md](references/i18n.md) |
 | Save a customer form and capture its CRM/analytics event | [forms.md](references/forms.md) |
 | Create payments, receipts or saved-card charges; list/count attempts or payments; handle payment callbacks or import historical payments | [payments.md](references/payments.md) |
+| Accept bonuses, tokens or an internal wallet balance through Pay; implement quote/debit/refund adapters or delegated balance charges | [internal-balance-payments.md](references/internal-balance-payments.md) |
 | Implement an external Pay provider, register full or partial transfers, or issue provider-side receipts | [payment-providers.md](references/payment-providers.md) |
 | Refund a payment or handle refund lifecycle hooks | [payment-refunds.md](references/payment-refunds.md) |
 | Create a PDF asynchronously from HTML or a URL | [pdf.md](references/pdf.md) |

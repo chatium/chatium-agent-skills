@@ -2,6 +2,8 @@
 
 Use this reference when implementing a payment provider in account code or a plugin. Ordinary checkout, lists, and fulfillment belong in [payments.md](payments.md). Read the installed `@pay/sdk` types before coding against a provider's current contract.
 
+For internal wallets, bonuses, or tokens, use the existing `pay:internal-balance` provider with a [balance adapter](internal-balance-payments.md), rather than registering an external acquiring provider through `@pay/get-providers`.
+
 ## Attempt data and receipts
 
 Declare a provider through `@pay/get-providers`. The provider's `actions.attemptPayment` receives the attempt ID, amount, `customer`, `payer`, and `items`. `payer?: { kind: 'person' | 'company' | 'ip'; name: string; inn?: string; kpp?: string; address?: string }` is the legal payer; `customer` contains the human's contact details. Use `payer` for B2B invoices instead of hiding company details in `customer.firstName`.

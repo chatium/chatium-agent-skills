@@ -2,6 +2,8 @@
 
 Use the public `@pay/sdk` from server code in an account or plugin. `runAttemptPayment` creates an `Attempt`; a confirmed transfer becomes a `Payment`. The `subject` links the attempt to an order or another Heap record. Provider-side methods are in [payment-providers.md](payment-providers.md).
 
+For bonuses, tokens, or a wallet, use the built-in internal provider and read [internal-balance-payments.md](internal-balance-payments.md). Ordinary checkout keeps the same `runAttemptPayment` contract; it does not require `source/externalId`. The separate `chargeInternalBalancePayment` SDK performs a protected debit for another user and is restricted to account code and Start.
+
 ## Create a payment
 
 ```ts
@@ -139,7 +141,7 @@ const [total, payments] = await Promise.all([
 ])
 ```
 
-Use `countAttempts` with `findAttempts` for an attempt list (for example unpaid invoices). Both APIs exclude status `Deleted` by default; pass `includeDeleted: true` to both when needed. Test records are included unless `where` excludes `paymentOrigin: 'test'` for attempts or `origin: 'test'` for payments. Payment `origin` may also be `imported`; imported payments have no attempt or provider. `payment.paidAt` is the actual receipt time; old rows may have only `createdAt`. For period reports, filter on `paidAt` and handle those older rows separately. The default list order is creation time, not receipt time. Separate count and list calls can disagree if data changes between them.
+Use `countAttempts` with `findAttempts` for an attempt list (for example unpaid invoices). Both APIs exclude status `Deleted` by default; pass `includeDeleted: true` to both when needed. Test and internal records are included unless `where` filters them: for money payments use `origin: ['live', 'imported']`, for money attempts use `paymentOrigin: 'live'`. Internal operations use `internal` in these fields. Imported payments have no attempt or provider. `payment.paidAt` is the actual receipt/debit time; old rows may have only `createdAt`. For period reports, filter on `paidAt` and handle those older rows separately. The default list order is creation time, not receipt time. Separate count and list calls can disagree if data changes between them.
 
 ## Partial payments
 
