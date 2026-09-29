@@ -1,6 +1,6 @@
 ---
 name: chatium-development
-description: "Create and edit Chatium account and plugin code: Vue and file-based routes, Heap, auth, storage, jobs, and platform SDK integrations for agents, messaging, automations, payments, analytics, media, CRM, and Google services. Excludes Chatium platform backend development."
+description: "Create and edit Chatium account and plugin code: Vue and file-based routes, Heap, auth, storage, jobs, and platform SDK integrations for agents, messaging, mailings, automations, payments, analytics, media, CRM, and Google services. Excludes Chatium platform backend development."
 ---
 
 # Chatium development
@@ -71,6 +71,10 @@ Sender manages customer communications over connected Telegram/VK/email/SMS and 
 | Pass start context or UTM data, or link CRM contacts to a messenger using deep links | [Buckets and linking](references/sender/linking.md) |
 | Find a profile by Telegram username | [Username lookup](references/sender/telegram-username.md) |
 | Report on message sends, delivery, reads, clicks, blocks, errors or latency | [Sender analytics](references/sender/analytics.md) |
+
+### Mailings
+
+For stored letters, use the [Mailings SDK](references/mailings.md) to read a letter by path or send it from a template.
 
 ### Google
 
