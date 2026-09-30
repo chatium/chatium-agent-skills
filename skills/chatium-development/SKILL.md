@@ -23,7 +23,7 @@ Load only references covering the change; a link does not require reading unrela
 
 | Task | Reference |
 | --- | --- |
-| Show or open a page, letter, letter folder, or knowledge article; present the result of an edit | [preview.md](preview.md) |
+| Show or open a page, letter, letter folder, knowledge article, or automation; present the result of an edit | [preview.md](preview.md) |
 | Create a workspace, build/change Vue UI, or display a QR code | [coding.md](coding.md) |
 | Define an endpoint, navigate, call an API, or connect an editor | [routing.md](routing.md) |
 | Define/change a table, write records, handle Money or links | [heap.md](heap.md) |
@@ -135,12 +135,12 @@ Before finishing, obtain fresh results from the project's available checks (such
 ## Show the result
 
 When the user asks to see an entity, or after completing a change to a page,
-letter, letter series, or knowledge article, open its rendered UI in the
+letter, letter series, knowledge article, or automation, open its rendered UI in the
 available preview panel. Follow [preview.md](preview.md) for the actual
 entity routes, branch selection, and Mailings folder limitations. Give a
 link as well; do not claim the preview opened unless the tool succeeded.
 Process maps and their presentation milestones belong to the `processes`
-skill. Automation and agent preview routes are not defined here yet.
+skill. Agent preview routes are not defined here yet.
 
 ## Publishing and branch preview
 
