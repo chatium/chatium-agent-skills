@@ -23,6 +23,7 @@ Load only references covering the change; a link does not require reading unrela
 
 | Task | Reference |
 | --- | --- |
+| Show or open a page, letter, letter folder, or knowledge article; present the result of an edit | [preview.md](preview.md) |
 | Create a workspace, build/change Vue UI, or display a QR code | [coding.md](coding.md) |
 | Define an endpoint, navigate, call an API, or connect an editor | [routing.md](routing.md) |
 | Define/change a table, write records, handle Money or links | [heap.md](heap.md) |
@@ -131,6 +132,16 @@ Before relying on an API signature, inspect the package's exported `.d.ts` files
 
 Before finishing, obtain fresh results from the project's available checks (such as typecheck, build, and relevant tests). Fix causes rather than hiding errors with broad `any`, assertions, suppressions, or weakened schemas; narrow, justified assertions are acceptable. Report unavailable checks and unrelated existing failures separately, and distinguish local checks from deployed runtime verification.
 
+## Show the result
+
+When the user asks to see an entity, or after completing a change to a page,
+letter, letter series, or knowledge article, open its rendered UI in the
+available preview panel. Follow [preview.md](preview.md) for the actual
+entity routes, branch selection, and Mailings folder limitations. Give a
+link as well; do not claim the preview opened unless the tool succeeded.
+Process maps and their presentation milestones belong to the `processes`
+skill. Automation and agent preview routes are not defined here yet.
+
 ## Publishing and branch preview
 
 Publishing changes to `main` publishes them to production. Publishing to any other branch publishes a branch version.
@@ -141,4 +152,4 @@ To preview a published branch, set this browser cookie on the account's site. Re
 __chtmPreviewMode__=account:<branchName>
 ```
 
-You can also give user a link directly to the branch preview by appending `?__chtmPreviewMode__=account:<branchName>` to the site's URL.
+For a direct link, set the `__chtmPreviewMode__` query parameter to `account:<branchName>` using URL encoding. Preserve existing query parameters and put the query before any `#` fragment; see [preview.md](preview.md).
