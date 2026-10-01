@@ -15,6 +15,7 @@ Use `chatium exec` to inspect deployed account data, debug server code, or perfo
 - Use imports, top-level `await`, and top-level `return` normally. Keep code in the snippet body: user exports are rejected.
 - Import tables and other stateful application modules from committed source. The snippet itself must not declare Heap tables, routes, registered jobs/functions, hooks, or manifest data.
 - Call existing tables and SDKs directly rather than through a route or HTTP request.
+- For installing a Store plugin, follow [Store plugin installation](references/store-plugin-install.md). Report the result and every declared permission to the user after the call.
 
 Pipe multiline code through a quoted heredoc so the shell does not expand it:
 

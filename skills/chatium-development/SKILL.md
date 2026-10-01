@@ -32,6 +32,7 @@ Load only references covering the change; a link does not require reading unrela
 | Display stored files, upload in an app, or upload local files with the CLI | [storage.md](storage.md) |
 | Schedule or cancel background work | [jobs.md](jobs.md) |
 | Inspect deployed data, debug server code, or seed data | [exec.md](exec.md) |
+| Inspect Store plugin permissions or install a plugin through `chatium exec` | [Store plugin installation](references/store-plugin-install.md) |
 
 ## Specialized references
 
