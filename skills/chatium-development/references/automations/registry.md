@@ -1,10 +1,10 @@
 # Реестр событий, действий и условий
 
-Для конфига используй актуальные зарегистрированные сущности целевого аккаунта и workspace. Проверяй `event.url`, `event.payloadMapping`, `action.routeJson`, `condition.routeJson` и обязательные входные поля. Одних примеров из документации недостаточно: в каждом аккаунте реестр свой.
+Для конфига используй актуальные зарегистрированные сущности целевого аккаунта. Если в аккаунте есть workspace, учитывай его область видимости; в Source Git аккаунте без workspace используй реестр всего аккаунта. Проверяй `event.url`, `event.payloadMapping`, `action.routeJson`, `condition.routeJson` и обязательные входные поля. Одних примеров из документации недостаточно: в каждом аккаунте реестр свой.
 
 ## Как получить реестр
 
-У плагина Automations есть защищённый read-only маршрут `getRegistryRoute` в `plugin/api/registry.ts`. Он возвращает `{ events, actions, conditions }`; параметр `workspacePath` ограничивает выборку нужным workspace. В коде самого плагина вызывай RouteRef, например `getRegistryRoute.query({ workspacePath }).run(ctx)`. В другом проекте используй доступный интерфейс или API реестра с действующей авторизацией; адрес маршрута получай из RouteRef, не составляй вручную.
+У плагина Automations есть защищённый read-only маршрут `getRegistryRoute` в `plugin/api/registry.ts`. Он возвращает `{ events, actions, conditions }`; параметр `workspacePath` ограничивает выборку нужным workspace. В Source Git аккаунте без workspace **не передавай** `workspacePath`: иначе реестр будет отфильтрован по произвольному пути. В коде самого плагина вызывай RouteRef, например `getRegistryRoute.query(workspacePath ? { workspacePath } : {}).run(ctx)`. В другом проекте используй доступный интерфейс или API реестра с действующей авторизацией; адрес маршрута получай из RouteRef, не составляй вручную.
 
 Сначала найди нужное событие, действие или условие по имени и назначению. Затем прочитай его `url`, `routeJson`, `payloadMapping` и схему. Если живой реестр недоступен, проверь исходники хуков регистрации и существующие конфиги, но отметь, что регистрация в целевом аккаунте не подтверждена. Не создавай публичный диагностический маршрут ради чтения реестра.
 
@@ -22,7 +22,7 @@ const conditionRouteJson = condition?.toJSON()
 const conditionSchema = condition && (await condition.schema(ctx))
 ```
 
-Для событий конкретного workspace плагин использует `getWorkspaceEvents(ctx, rootWorkspace)`. Действия собирает его внутренний `plugin/sdk/getAutomationActions.ts` через хук `actions`; текущий публичный `@automations/sdk` этот метод не экспортирует. Для действий используй маршрут реестра, а при работе внутри плагина — `collectActions(ctx, workspacePath)` из `plugin/api/registry.ts`.
+Для событий конкретного workspace плагин использует `getWorkspaceEvents(ctx, rootWorkspace)`; без workspace — `getAccountEvents(ctx)`. Действия собирает его внутренний `plugin/sdk/getAutomationActions.ts` через хук `actions`; текущий публичный `@automations/sdk` этот метод не экспортирует. Для действий используй маршрут реестра, а при работе внутри плагина — `collectActions(ctx, workspacePath)` или `collectActions(ctx)` без workspace из `plugin/api/registry.ts`.
 
 У ссылок действий и условий `.toJSON()` даёт точный `routeJson`, а `.schema(ctx)` — `meta`, `body` и `result`. В `meta` ищи `name`, `description`, `llmDescription`, `icon` и `category`; доступность полей сверяй с типами конкретной функции. Поле `.pattern` подходит для поиска кандидата, но не заменяет `routeJson`.
 
