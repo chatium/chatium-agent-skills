@@ -20,6 +20,7 @@ Before working in a workspace or isolated module, read its `.CHATIUM-LLM.md` if 
 ## Read for the task
 
 Load only references covering the change; a link does not require reading unrelated examples.
+For an actionable business event with a known Staff+ recipient—such as a submitted lead, a completed job, or a failed payment—implement a Store Inbox notification alongside the business event; use [Store notifications](references/store-notifications.md). This mechanism is only for account staff and administrators, never for ordinary users or customers. If the staff audience is unclear, establish it before sending.
 
 | Task | Reference |
 | --- | --- |
@@ -33,6 +34,7 @@ Load only references covering the change; a link does not require reading unrela
 | Schedule or cancel background work | [jobs.md](jobs.md) |
 | Inspect deployed data, debug server code, or seed data | [exec.md](exec.md) |
 | Inspect Store plugin permissions or install a plugin through `chatium exec` | [Store plugin installation](references/store-plugin-install.md) |
+| Notify account staff about a meaningful application event (a new lead, completed job, failed payment, etc.) | [Store notifications](references/store-notifications.md) |
 
 ## Specialized references
 
