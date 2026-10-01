@@ -12,6 +12,7 @@ Before working in a workspace or isolated module, read its `.CHATIUM-LLM.md` if 
 ## Runtime and module boundaries
 
 - Backend TypeScript runs in sandboxed V8 with platform modules and packages, without Node.js builtins, filesystem, or shell access. These limits concern application code, not local development tools.
+- Imported plugin SDK function bodies are cached in consuming accounts. Keep exported wrappers thin: forward arguments to a stable `app.function` RouteRef. Put validation, parsing, policy and business logic inside that live plugin handler or its private server helpers, so plugin fixes do not require rebuilding every consumer. Preserve existing route paths and compatible arguments.
 - Schedule deferred backend work with [jobs](jobs.md); server handlers do not use `setTimeout` or `setInterval`.
 - Global `app` registers backend routes and jobs; handlers receive `ctx`. Vue has a global `ctx` in both script and template, with no context prop needed.
 - Start every module under `shared/` with `// @shared` on its first line. Apply the same directive to non-route TSX helpers imported by Vue. Route files need no marker merely because Vue imports their RouteRefs.
