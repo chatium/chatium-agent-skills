@@ -54,10 +54,6 @@ await writeWorkspaceEvent(ctx, 'form_submitted', {
     type: 'phone',
     value: formData.phone,
   }],
-  action_param1: formData.name,      // строковое значение 1
-  action_param2: formData.email,     // строковое значение 2
-  action_param3: formData.phone,     // строковое значение 3
-  action_param1_int: formData.amount, // числовое значение 1
   uid: userUid, // ЭТО ВСЕГДА СТРОКА! если известен uid пользователя (как правило его почти всегда можно получить на клиенте из window.clrtUid либо из куки запроса "x-chtm-uid")
   utm_source: req.query.utm_source,
   utm_medium: req.query.utm_medium,
@@ -110,8 +106,7 @@ await captureCustomerEvent(ctx, {
 
   // Дополнительные поля метрики; зарезервированные поля формирует CRM
   metricEventData: {
-    action_param1: formData.name,
-    action_param2: formData.email,
+    action_param1: HeapRecordItem.id, // ID для автоматизации; контакт уже передан в contacts
     utm_source: req.query.utm_source,
   },
 })
@@ -157,6 +152,11 @@ await captureCustomerEvent(ctx, {
 - `writeWorkspaceEvent`: `customer_contacts: [{ type: 'email', value: email }]`.
 - `captureCustomerEvent`: `contacts` и/или `appendUserContacts`. Не передавай `customer_contacts` ни в корень CRM-вызова, ни в `metricEventData`: CRM формирует его из контактов.
 
+Не копируй email, телефон или адрес мессенджера в `action_param*` ради
+доступности получателя автоматизации: используй контактный контекст события.
+Метрические слоты оставляй для ID бизнес-сущностей и показателей, которые
+действительно нужны автоматизации или отчёту.
+
 ### Пример полной реализации
 
 ```typescript
@@ -185,10 +185,7 @@ export const submitFormRoute = app.post('/')
         { type: 'email', value: email },
         { type: 'phone', value: phone },
       ],
-      action_param1: name,
-      action_param2: email,
-      action_param3: phone,
-      action_param1_mapstrstr: { message },
+      action_param1_mapstrstr: { formType: 'contact' },
     })
 
     return { success: true }
