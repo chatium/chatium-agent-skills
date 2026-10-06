@@ -136,6 +136,8 @@ Before relying on an API signature, inspect the package's exported `.d.ts` files
 
 Before finishing, obtain fresh results from the project's available checks (such as typecheck, build, and relevant tests). Fix causes rather than hiding errors with broad `any`, assertions, suppressions, or weakened schemas; narrow, justified assertions are acceptable. Report unavailable checks and unrelated existing failures separately, and distinguish local checks from deployed runtime verification.
 
+Run `chatium typecheck <paths...>` on the folders or files you changed: it checks them and their imports, using less memory than a bare `chatium typecheck` of the whole account. When a change alters an export, add every folder that imports it.
+
 ## Show the result
 
 When the user asks to see an entity, or after completing a change to a page,

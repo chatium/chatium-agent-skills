@@ -42,8 +42,7 @@ For backend ingestion of a known remote file, `await fetchUrlToStorage(ctx, sour
 
 ## Upload local files with the CLI
 
-For local assets, run the CLI from the target account's synchronized Source Git checkout, including
-its subdirectories. It selects the account from `origin` and reuses CLI OAuth authorization.
+For local assets, the CLI uploads to the account from `origin` and reuses CLI OAuth authorization.
 
 ```sh
 chatium storage upload ./photo.jpg ./document.pdf

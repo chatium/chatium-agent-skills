@@ -4,7 +4,7 @@ Use `chatium exec` to inspect deployed account data, debug server code, or perfo
 
 ## Before running
 
-- Run inside a Source Git checkout. Exec uses the successful Source Build for the exact committed `HEAD`; it does not add the snippet to Git.
+- Exec uses the successful Source Build for the exact committed `HEAD`; it does not add the snippet to Git.
 - Treat a dirty-checkout warning as proof that the run did not test staged, unstaged, untracked, or dirty-submodule changes. Runtime verification of local edits starts only when their exact commit has a successful Source Build.
 - Run from the directory that should own the snippet. Relative imports resolve from the current directory; `/module` resolves from the account root.
 - Start with reads. Run a seed or other mutation only when the user's request authorizes changing account data.
