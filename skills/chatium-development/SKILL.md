@@ -63,6 +63,7 @@ Automations runs deterministic sequences after events: conditions check state, a
 | Create a reusable step with side effects | [Actions](references/automations/actions.md) |
 | Inspect registered events, actions, conditions and their schemas | [Registry](references/automations/registry.md) |
 | Create, edit, or validate a `.automationConfig.json` sequence; add its management UI when requested | [Configuration](references/automations/configuration.md) |
+| Resolve stable automation IDs, inspect execution logs or work with Git branches and historical IDs | [Automations SDK](references/automations/sdk.md) |
 
 ### Sender
 
