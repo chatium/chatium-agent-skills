@@ -66,15 +66,17 @@ class Validator:
         if not obj(config):
             self.error("$", "конфиг должен быть JSON-объектом")
             return
-        allowed = {"title", "description", "eventUrls", "steps", "settings", "defaultTimezone"}
+        allowed = {"title", "description", "eventUrls", "steps", "settings", "defaultTimezone", "__legacyEntityId"}
         for key in config.keys() - allowed:
             self.error(key, "неизвестное поле исходного конфига")
         for key in ("title", "description", "defaultTimezone"):
             if key in config and not isinstance(config[key], str):
                 self.error(key, "ожидается строка")
+        if "__legacyEntityId" in config and (not isinstance(config["__legacyEntityId"], str) or not config["__legacyEntityId"]):
+            self.error("__legacyEntityId", "ожидается непустой старый ID")
         urls = config.get("eventUrls")
-        if not isinstance(urls, list) or not urls:
-            self.error("eventUrls", "нужен непустой массив URL событий")
+        if not isinstance(urls, list):
+            self.error("eventUrls", "нужен массив URL событий")
         else:
             for i, url in enumerate(urls):
                 path = f"eventUrls[{i}]"
