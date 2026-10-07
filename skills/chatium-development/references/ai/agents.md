@@ -115,7 +115,7 @@ const { chainId } = await pushMessageToChain(ctx, {
 | Читать историю и очередь | `getChainMessages` — обработанная история; `getChainPendingMessages` — ещё не обработанные сообщения |
 | Управлять ожиданием и остановкой | `sleepChain`, `sleepChainForever`, `unsleepChain`, `stopChain`, `blockChain` |
 | Проверить отложенные действия | `fastForwardChainTo` — отладочная перемотка времени цепочки с выполнением наступивших действий; используй на тестовой цепочке |
-| Передать разговор другому агенту | `redirectChain`, `redirectChainByContacts`; для отдела используй ID руководителя |
+| Передать разговор другому агенту | При достижении цели самостоятельного агента — `goal.type: 'redirect2'` и встроенный `complete-goal`; для серверного переключения — `redirectChain`, `redirectChainByContacts`. Подробности — [передача](routing-and-handoff.md#передача-между-агентами); для отдела в SDK используй ID руководителя |
 | Управлять связью с каналом | `linkAgentToChannel`, `isAgentLinkedToChannel`, `unlinkAgentFromChannel` |
 | Найти инструменты, инструкции и модели | `getAllAvailableTools`, `findWorkspaceTools`, `findInstructionsList`, `findModelsList` |
 | Получить ссылку на инструмент | `getEnabledToolEntry` — канонический ref для `enabledTools` или `directOutputTool` |
