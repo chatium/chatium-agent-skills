@@ -157,7 +157,7 @@ CREATE VIEW chatium_ai.behaviour2_log
 )
 ```
 
-Расходы, CAC, ROI, ROAS и связка событий с рекламными источниками — в [attribution.md](attribution.md).
+Расходы, CAC, ROI, ROAS и связка событий с рекламными источниками — в [analytics-attribution.md](analytics-attribution.md).
 
 ## Пример записи в таблице в виде JSON
 
@@ -277,35 +277,30 @@ CREATE VIEW chatium_ai.behaviour2_log
 
 ## Выполнение запросов
 
-У тебя есть функция queryAi, которая позволяет делать запросы к этим таблицам
+Для разовой аналитики запускай запросы через [chatium exec](exec.md). Функция `queryAi` из `@traffic/sdk` возвращает объект с полем `rows`; верни этот массив как результат сниппета.
 
-Sample for query: "Visits, users and sessions count for last month by dates"
+`uid` идентифицирует посетителя, `sid` — сессию. Для числа сессий считай уникальные непустые `sid`; `COUNT()` считает записи, а не сессии.
+
+Пример: посещения, пользователи и сессии за последний месяц по дням.
 ```typescript
-import {queryAi} from '@traffic/sdk'
+import { queryAi } from '@traffic/sdk'
 
-async function getTrafficByDate<Row = unknown>(ctx: app.Ctx): Promise<TrafficResult<Row>> {
-  const query = `
-    SELECT
-      toDate(toStartOfDay(dt)) as period, -- by days
-      COUNT() as visits_count,
-      uniq(resolved_user_id) as users_count,
-      uniq(uid) as sessions_count
-    FROM
-      chatium_ai.access_log
-    WHERE
-      startsWith(urlPath, 'https')
-      AND dt BETWEEN subtractMonths(today(), 1) AND today()
-    GROUP BY
-      period
-    `
+const result = await queryAi(ctx, `
+  SELECT
+    dt as period,
+    COUNT() as visits_count,
+    uniq(resolved_user_id) as users_count,
+    uniqIf(sid, sid != '') as sessions_count
+  FROM
+    chatium_ai.access_log
+  WHERE
+    startsWith(urlPath, 'https')
+    AND dt BETWEEN subtractMonths(today(), 1) AND today()
+  GROUP BY
+    period
+`)
 
-  const result = await queryAi(ctx, query)
-  return result.rows
-}
-
-type TrafficResult<Row = unknown> = {
-  rows: Row[]
-}
+return result.rows
 ```
 
 ## Подбор адресов (urlPath) событий
@@ -344,7 +339,7 @@ type TrafficResult<Row = unknown> = {
     ua_device_brand,
     ua_os_name,
     ua_client_name,
-    COUNT(uid) as sessions_count
+    COUNT() as visits_count
   FROM
     chatium_ai.access_log
   WHERE
@@ -357,32 +352,28 @@ type TrafficResult<Row = unknown> = {
     ua_device_brand,
     ua_os_name,
     ua_client_name
-  ORDER BY sessions_count DESC
+  ORDER BY visits_count DESC
   LIMIT 0, 30
 ```
 
 ## Пример "Какие самые популярные страницы за последние 30 дней"
 
+Период — 30 календарных дней, включая сегодня. Каждая строка результата — одна страница.
+
 ```sql
   SELECT
     urlPath,
-    ua_device_brand,
-    ua_os_name,
-    ua_client_name,
-    COUNT(uid) as sessions_count
+    COUNT() as visits_count
   FROM
     chatium_ai.access_log
   WHERE
     (
       startsWith(urlPath, 'https://')
     )
-    AND dt BETWEEN toStartOfMonth(today()) AND today()
+    AND dt BETWEEN subtractDays(today(), 29) AND today()
   GROUP BY
-    ua_device_type,
-    ua_device_brand,
-    ua_os_name,
-    ua_client_name
-  ORDER BY sessions_count DESC
+    urlPath
+  ORDER BY visits_count DESC
   LIMIT 0, 30
 ```
 
@@ -392,7 +383,7 @@ type TrafficResult<Row = unknown> = {
 
 - Если пользователь просит тебя построить аналитику по каким-то конкретным данным, но не дает никаких технических вводных (адреса событий, `relatedEvents`, `eventUrl`, возможные значения и т.д.), тебе необходимо:
 
-1. Узнать (с помощью chatium exec) какие события зарегистрированы в аккаунте.
+1. Узнать (с помощью [chatium exec](exec.md)) какие события зарегистрированы в аккаунте.
   Пример извлечения списка доступных событий:
 
     ```ts

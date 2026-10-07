@@ -1,6 +1,6 @@
 # Read platform account logs through `chatium exec`
 
-Use this path when the account where the code ran has a local Chatium Source Git checkout, the CLI is authorized, and the checkout's committed `HEAD` has a successful Source Build. Follow [exec.md](../exec.md) to establish the account and checkout. A plugin's source account may differ from the account where it executed; query the latter. Browser `console.log` is not an account log.
+Use this path when the account where the code ran has a local Chatium Source Git checkout, the CLI is authorized, and the checkout's committed `HEAD` has a successful Source Build. Follow [exec.md](exec.md) to establish the account and checkout. A plugin's source account may differ from the account where it executed; query the latter. Browser `console.log` is not an account log.
 
 Import `queryAccountLogs` from `@app/ugc` in the exec snippet. Its published typings describe `queryAccountLogs<Row>(ctx, sql, options?)` as read-only ClickHouse SQL for the current account's logs. The default `JSON` response is `{ rows: Row[] }`; date columns may be JavaScript `Date` values. Optional `format` and `settings` select compact output when needed. The SDK does not return logs written by the `start` app. Confirm the export and signature in the target checkout's `.d.ts` before use.
 

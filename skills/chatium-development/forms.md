@@ -2,10 +2,10 @@
 
 Use this flow when a submitted form represents a customer action that the application should retain and expose to CRM or analytics, such as a lead, registration, booking, or order.
 
-1. Validate and save the submission through its own protected or public POST [RouteRef](../routing.md#route-convention-and-inputs). Store the application record in Heap before capturing the event.
+1. Validate and save the submission through its own protected or public POST [RouteRef](routing.md#route-convention-and-inputs). Store the application record in Heap before capturing the event.
 2. Call `captureCustomerEvent` from `@crm/sdk` with the contacts actually supplied, or `appendUserContacts` for an authenticated user's confirmed contacts.
 3. Put display name and UTM attribution in `customer`, the saved Heap row in `linkRecords`, business payload in `payload`, and analytics fields in `metricEventData`. `metricEventData` does not accept generated event fields such as `url`.
-4. Use a stable action name such as `registrationCreated` or `bookingCreated`. The full event contract and registration rules are in [События](automations/events.md#запись-события-клиента-capturecustomerevent).
+4. Use a stable action name such as `registrationCreated` or `bookingCreated`. The full event contract and registration rules are in [События](automations-events.md#запись-события-клиента-capturecustomerevent).
 5. When a responsible account staff member should act on a new submission, send a [Store Inbox notification](store-notifications.md) after saving it. This mechanism is only for Staff+; never use it to notify the customer who submitted the form or other ordinary users.
 
 ```ts

@@ -9,9 +9,10 @@ platform SDK integrations. Topic references are loaded only for the requested ta
 References may be in English or Russian; agents respond in the user's language.
 
 Skills live in `skills/chatium-<name>/SKILL.md`. Each skill has YAML frontmatter
-with a matching `name` and a `description`. Supporting resources can live beside
-its `SKILL.md` in the same directory. Skill directories contain regular files and
-directories, without symlinks.
+with a matching `name` and a `description`. Supporting documents and executable
+helpers live beside `SKILL.md` in a flat skill directory. Topic prefixes such as
+`google-` and `sender-` identify related articles. Skill directories contain regular
+files without symlinks.
 
 The core guide follows the Chatium application-development instructions, adapted for
 local source editing. SDK signatures are checked against typings available in the

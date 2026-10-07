@@ -133,4 +133,4 @@ await batchUpdateGoogleDoc(ctx, {
 })
 ```
 
-Для деталей операций с таблицами и документами см. [Sheets](sheets.md) и [Docs](docs.md).
+Для деталей операций с таблицами и документами см. [Sheets](google-sheets.md) и [Docs](google-docs.md).

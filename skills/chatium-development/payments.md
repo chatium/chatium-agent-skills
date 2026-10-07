@@ -88,7 +88,7 @@ Diagnose `Receipt is missing or illegal` from the item/contact data and the fisc
 - Set `saveCard: true` on the initial payment when the chosen provider supports tokenization.
 - List usable cards with `getSavedCards(ctx, { userId, providerId })`; handle `success: false` and an empty list.
 - Charge with `attemptAutoCharge(ctx, { subject, amount, description, userId, providerId?, savedCardId?, dealId?, initedBy, bySchedule, customer?, items?, payload?, successCallbackRoute?, cancelCallbackRoute?, paymentReceivedCallbackRoute? })`.
-- For a scheduled charge use `initedBy: 'system'`, `bySchedule: true`, call it from an [app job](../jobs.md), and notify the customer of the result.
+- For a scheduled charge use `initedBy: 'system'`, `bySchedule: true`, call it from an [app job](jobs.md), and notify the customer of the result.
 
 For a user-initiated charge, require a real user, authorize access to the order, and load its amount and provider on the server. Treat a submitted card ID only as a selection: verify that it belongs to this user and to the chosen provider. This handler fragment assumes those order checks have already passed and `selectedCardId` is a validated string:
 
@@ -125,7 +125,7 @@ if (!charge.success && charge.errorCode !== 'PAYMENT_PENDING') {
 
 An immediate successful response can still leave the attempt `Pending`; `PAYMENT_PENDING` also means awaiting confirmation, not final failure. Grant access and schedule the next subscription period only from the validated, idempotent success callback, never again from the initiating handler/job. A scheduled charge derives its owner, selected card and provider from the authorized subscription, not an interactive `ctx.user` or unchecked client IDs.
 
-If the account or plugin code already schedules failure handling, retain those job IDs and cancel them on late success using the [job cancellation API](../jobs.md). In the failure job, reload the attempt/order state before acting: a cancellation cannot stop a handler already running, and late success can supersede an earlier failure. Reuse the existing retry policy; do not add a second retry system or schedule the next payment in two places.
+If the account or plugin code already schedules failure handling, retain those job IDs and cancel them on late success using the [job cancellation API](jobs.md). In the failure job, reload the attempt/order state before acting: a cancellation cannot stop a handler already running, and late success can supersede an earlier failure. Reuse the existing retry policy; do not add a second retry system or schedule the next payment in two places.
 
 ## Find and count attempts or payments
 

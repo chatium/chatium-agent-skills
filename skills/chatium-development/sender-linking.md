@@ -13,7 +13,7 @@ description: >
 
 `CreateLinkBucketInput` и `CreateLinkBucketResult` экспортируются из `@crm/sdk`. Метод принимает `contacts` или `contactIds` уже существующих контактов и необязательный `payload`; проверяй `success` перед использованием `bucketId`.
 
-Для короткой ссылки на переход передавай `ttlSeconds` с разумным сроком действия. Без него бакет сохраняет прежнее бессрочное поведение. LinkBucket связывает идентичность контактов в CRM при первом входе; он не переносит историю, задачу и состояние разговора AI-агента. Для передачи разговора между агентами используй `redirectChain`/`redirectChainByContacts` и [маршрутизацию и передачу](../ai/routing-and-handoff.md), а изменяемые факты клиента сохраняй в CRM.
+Для короткой ссылки на переход передавай `ttlSeconds` с разумным сроком действия. Без него бакет сохраняет прежнее бессрочное поведение. LinkBucket связывает идентичность контактов в CRM при первом входе; он не переносит историю, задачу и состояние разговора AI-агента. Для передачи разговора между агентами используй `redirectChain`/`redirectChainByContacts` и [маршрутизацию и передачу](ai-routing-and-handoff.md), а изменяемые факты клиента сохраняй в CRM.
 
 ## Обзор сценария
 
@@ -220,7 +220,7 @@ async function submitForm(ctx: app.Ctx, formData: { email?: string; phone?: stri
 
 ## Шаг 3. Обработка входящего сообщения в хуке
 
-Хук `@sender/message-received` — **общий на весь аккаунт**. В него приходят **ВСЕ** входящие сообщения от **ВСЕХ** ботов и каналов. Сначала фильтруй по `params.channel.id`, затем по `bucket.data.source`, чтобы обрабатывать только свои каналы и бакеты. Ограничения личных чатов и TelegramManager описаны в [webhooks.md](webhooks.md).
+Хук `@sender/message-received` — **общий на весь аккаунт**. В него приходят **ВСЕ** входящие сообщения от **ВСЕХ** ботов и каналов. Сначала фильтруй по `params.channel.id`, затем по `bucket.data.source`, чтобы обрабатывать только свои каналы и бакеты. Ограничения личных чатов и TelegramManager описаны в [sender-webhooks.md](sender-webhooks.md).
 
 ```typescript
 import { findBucketById, sendMessageToChat } from '@sender/sdk'

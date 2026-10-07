@@ -110,10 +110,10 @@ app.accountHook('@start/agent/tools', async (ctx) => {
 В Source Git инструмент из опубликованной preview-ветки виден агенту в том же preview-контексте сразу после успешной сборки. В main до публикации туда его нет. Проверяй фактический список инструментов в целевой ветке, не добавляй произвольную задержку «на регистрацию».
 
 ## Доступность ≠ включённость: подключение к агенту
-Регистрация в хуке делает тул **доступным**, но конкретный агент вызывает только те тулы, что перечислены в его `enabledTools`. В Git-аккаунте получи канонический ref через `getEnabledToolEntry`, добавь его в `*.agent.json` и проверь конфиг. Условия для инструментов воркспейса и получение ref описаны в [документации агентов](agents.md#инструменты-агента).
+Регистрация в хуке делает тул **доступным**, но конкретный агент вызывает только те тулы, что перечислены в его `enabledTools`. В Git-аккаунте получи канонический ref через `getEnabledToolEntry`, добавь его в `*.agent.json` и проверь конфиг. Условия для инструментов воркспейса и получение ref описаны в [документации агентов](ai-agents.md#инструменты-агента).
 
 ## Тул как цель `directOutputTool` (generic AI-generation)
-Если задача — не «дать агенту кнопку», а **сгенерировать текст и принять результат в свой код** (письмо, JSON, описание), используй `directOutputTool` при push-е сообщения (см. [Агенты](agents.md)):
+Если задача — не «дать агенту кнопку», а **сгенерировать текст и принять результат в свой код** (письмо, JSON, описание), используй `directOutputTool` при push-е сообщения (см. [Агенты](ai-agents.md)):
 - финальный текст модели передаётся целевой функции; обычные подготовительные tool calls доступны, если их не отключить через `directOutputTool.tools`;
 - рантайм оборачивает его в синтетический `tool_use` и **вызывает твой тул/`app.function` с этим текстом как `input`** тем же контрактом `handler.run(ctx, { context, input })`;
 - целевая функция **не обязана** быть включённым тулом агента.
@@ -128,4 +128,4 @@ app.accountHook('@start/agent/tools', async (ctx) => {
 
 For standalone generation, reuse the same tool declaration and return contract. Pass the tool explicitly in `startCompletion`'s `tools` array, not `nativeTools`. Its `context` comes from the completion caller; do not assume agent runtime fields are present. Registration in `@start/agent/tools` is only needed for discovery by agents.
 
-For the complete call and callback lifecycle, see [generation.md](generation.md). Agent `directOutputTool` is a separate path: it delivers generated text to a target function in an existing agent chain, as described above.
+For the complete call and callback lifecycle, see [ai-generation.md](ai-generation.md). Agent `directOutputTool` is a separate path: it delivers generated text to a target function in an existing agent chain, as described above.

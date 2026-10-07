@@ -22,11 +22,11 @@ if (!parsed.success) throw new Error('Некорректный конфиг аг
 | `model`, `temperature` | Модель и степень вариативности; список моделей получай через `findModelsList` |
 | `enabledTools[]` | Только канонические ссылки `{accountId?, isWorkspaceTool, path, pattern}`; получай через `getEnabledToolEntry`, сверяй с каталогом опубликованной ветки |
 | `knowledgeBase` | `{mode:'ids',ids:[...]}` или `{mode:'allAvailableToAgents'}`. `ids` — ID баз, не статей; права доступа сохраняются |
-| `waitingToolEnabled`, `autonomyInstructions` | Разрешение агенту завершать ход и планировать продолжение; подробности — [автономность](autonomy.md) |
+| `waitingToolEnabled`, `autonomyInstructions` | Разрешение агенту завершать ход и планировать продолжение; подробности — [автономность](ai-autonomy.md) |
 | `timeZone`, `quietHours`, `stopOnNonRepliedMessages`, `tokensLimitPerChain` | Часы, остановка после молчания и бюджет; согласуй с бизнес-правилом |
 | `messageBuffer.idleMs`, `freezeAfterOutgoingMessage` | Ожидание пачки входящих и пауза после собственного сообщения |
 | `scheduleMessagesEnabled` | Планирование первых сообщений; не включай только ради обычного ответа на входящее |
-| `goal` | Условие достижения результата и действие после него; для передачи другой самостоятельной роли — `redirect2`, см. [передачу](routing-and-handoff.md#передача-между-агентами) |
+| `goal` | Условие достижения результата и действие после него; для передачи другой самостоятельной роли — `redirect2`, см. [передачу](ai-routing-and-handoff.md#передача-между-агентами) |
 
 `maxTokensPerChain` устарел; для новых конфигов используй `tokensLimitPerChain`. `isPaused` в Git-файле не управляет текущей общей паузой агента. Устаревший builder-validator из UI может требовать поля, которые публичная схема делает необязательными: не используй его как универсальную проверку минимального Git-конфига.
 

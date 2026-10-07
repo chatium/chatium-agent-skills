@@ -37,7 +37,7 @@ if (!result.success) throw new Error(result.error ?? 'Не удалось отп
 обязательные переменные. `expandCustomerContacts: true` передаёт Sender
 поручение добавить уникальные контакты недостающих типов через CRM.
 Правила расширения, ограничения и приоритета —
-[sendMessageToContacts](sender/messaging.md#sendmessagetocontacts).
+[sendMessageToContacts](sender-messaging.md#sendmessagetocontacts).
 Не копируй эту логику в Mailings или в действие процесса.
 
 Проверяй `success`, `error`, `errorCode`, `channelResults` и `warnings`.
@@ -87,7 +87,7 @@ if (!result.success) throw new Error(result.error ?? 'Не удалось отп
 ## Показать письмо или папку пользователю
 
 Открывай интерфейс плагина Mailings на домене текущего аккаунта по
-[правилам превью](../preview.md). Путь для `#/letter/` относителен
+[правилам превью](preview.md). Путь для `#/letter/` относителен
 `.mailings/storage/` и **включает** `.message.yaml`; это не `messageKey`
 метода отправки. Экран письма содержит Email/Чат/SMS-превью. Папка серии
 выбирается через UI хранилища `#/store`, а не выдуманным URL папки.

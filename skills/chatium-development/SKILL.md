@@ -22,8 +22,8 @@ Before working in a workspace or isolated module, read its `.CHATIUM-LLM.md` if 
 
 ## Read for the task
 
-Load only references covering the change; a link does not require reading unrelated examples.
-For an actionable business event with a known Staff+ recipient—such as a submitted lead, a completed job, or a failed payment—implement a Store Inbox notification alongside the business event; use [Store notifications](references/store-notifications.md). This mechanism is only for account staff and administrators, never for ordinary users or customers. If the staff audience is unclear, establish it before sending.
+Load only references covering the change; a link does not require reading unrelated examples. Resolve linked filenames from the directory containing this `SKILL.md`.
+For an actionable business event with a known Staff+ recipient—such as a submitted lead, a completed job, or a failed payment—implement a Store Inbox notification alongside the business event; use [Store notifications](store-notifications.md). This mechanism is only for account staff and administrators, never for ordinary users or customers. If the staff audience is unclear, establish it before sending.
 
 | Task | Reference |
 | --- | --- |
@@ -36,9 +36,9 @@ For an actionable business event with a known Staff+ recipient—such as a submi
 | Display stored files, upload in an app, or upload local files with the CLI | [storage.md](storage.md) |
 | Schedule or cancel background work | [jobs.md](jobs.md) |
 | Inspect deployed data, debug server code, or seed data | [exec.md](exec.md) |
-| Read platform logs for an account with an available Source Git checkout | [Account logs](references/account-logs.md) |
-| Inspect Store plugin permissions or install a plugin through `chatium exec` | [Store plugin installation](references/store-plugin-install.md) |
-| Notify account staff about a meaningful application event (a new lead, completed job, failed payment, etc.) | [Store notifications](references/store-notifications.md) |
+| Read platform logs for an account with an available Source Git checkout | [Account logs](account-logs.md) |
+| Inspect Store plugin permissions or install a plugin through `chatium exec` | [Store plugin installation](store-plugin-install.md) |
+| Notify account staff about a meaningful application event (a new lead, completed job, failed payment, etc.) | [Store notifications](store-notifications.md) |
 
 ## Specialized references
 
@@ -50,14 +50,14 @@ Agents run conversations with history and tools; their configuration lives in `*
 
 | Task | Reference |
 | --- | --- |
-| Create or edit an agent or department, use agents in Git branches, run conversations, or connect a transport | [Agents and SDK](references/ai/agents.md) |
-| Validate a standalone agent JSON, choose knowledge, tools, model or limits | [Agent config](references/ai/agent-config.md) |
-| Plan reminders, repeat follow-ups and stop autonomous work | [Agent autonomy](references/ai/autonomy.md) |
-| Distinguish model instructions, chain context, CRM and knowledge access | [Agent context and knowledge](references/ai/context-and-knowledge.md) |
-| Route a shared channel to one agent, hand off a customer, or verify routing in preview | [Agent routing and handoff](references/ai/routing-and-handoff.md) |
-| Receive an agent turn's output in your function via `directOutputTool` | [Agent direct output](references/ai/agents.md#directoutputtool) |
-| Run standalone generation with callbacks, native tools, images or video | [Generation](references/ai/generation.md) |
-| Create an agent tool, a direct-output function, or tools for `startCompletion` | [Tools](references/ai/tools.md) |
+| Create or edit an agent or department, use agents in Git branches, run conversations, or connect a transport | [Agents and SDK](ai-agents.md) |
+| Validate a standalone agent JSON, choose knowledge, tools, model or limits | [Agent config](ai-agent-config.md) |
+| Plan reminders, repeat follow-ups and stop autonomous work | [Agent autonomy](ai-autonomy.md) |
+| Distinguish model instructions, chain context, CRM and knowledge access | [Agent context and knowledge](ai-context-and-knowledge.md) |
+| Route a shared channel to one agent, hand off a customer, or verify routing in preview | [Agent routing and handoff](ai-routing-and-handoff.md) |
+| Receive an agent turn's output in your function via `directOutputTool` | [Agent direct output](ai-agents.md#directoutputtool) |
+| Run standalone generation with callbacks, native tools, images or video | [Generation](ai-generation.md) |
+| Create an agent tool, a direct-output function, or tools for `startCompletion` | [Tools](ai-tools.md) |
 
 ### Automations
 
@@ -65,12 +65,12 @@ Automations runs deterministic sequences after events: conditions check state, a
 
 | Task | Reference |
 | --- | --- |
-| Create/change important business actions (forms, orders, payments, sign-ups), or record a business/browser event linked to CRM or automations | [Events](references/automations/events.md) |
-| Check a business condition without side effects | [Conditions](references/automations/conditions.md) |
-| Create a reusable step with side effects | [Actions](references/automations/actions.md) |
-| Inspect registered events, actions, conditions and their schemas | [Registry](references/automations/registry.md) |
-| Create, edit, or validate a `.automationConfig.json` sequence; add its management UI when requested | [Configuration](references/automations/configuration.md) |
-| Resolve stable automation IDs, inspect execution logs or work with Git branches and historical IDs | [Automations SDK](references/automations/sdk.md) |
+| Create/change important business actions (forms, orders, payments, sign-ups), or record a business/browser event linked to CRM or automations | [Events](automations-events.md) |
+| Check a business condition without side effects | [Conditions](automations-conditions.md) |
+| Create a reusable step with side effects | [Actions](automations-actions.md) |
+| Inspect registered events, actions, conditions and their schemas | [Registry](automations-registry.md) |
+| Create, edit, or validate a `.automationConfig.json` sequence; add its management UI when requested | [Configuration](automations-configuration.md) |
+| Resolve stable automation IDs, inspect execution logs or work with Git branches and historical IDs | [Automations SDK](automations-sdk.md) |
 
 ### Sender
 
@@ -78,16 +78,16 @@ Sender manages customer communications over connected Telegram/VK/email/SMS and 
 
 | Task | Reference |
 | --- | --- |
-| Handle incoming private messages, callback buttons, group updates or raw webhooks | [Webhooks](references/sender/webhooks.md) |
-| Send messages, read history, delete messages or call Telegram/VK APIs | [Messaging](references/sender/messaging.md) |
-| Connect or select a channel; find or update channels, chats, people, tags or Telegram groups | [Entities](references/sender/entities.md) |
-| Pass start context or UTM data, or link CRM contacts to a messenger using deep links | [Buckets and linking](references/sender/linking.md) |
-| Find a profile by Telegram username | [Username lookup](references/sender/telegram-username.md) |
-| Report on message sends, delivery, reads, clicks, blocks, errors or latency | [Sender analytics](references/sender/analytics.md) |
+| Handle incoming private messages, callback buttons, group updates or raw webhooks | [Webhooks](sender-webhooks.md) |
+| Send messages, read history, delete messages or call Telegram/VK APIs | [Messaging](sender-messaging.md) |
+| Connect or select a channel; find or update channels, chats, people, tags or Telegram groups | [Entities](sender-entities.md) |
+| Pass start context or UTM data, or link CRM contacts to a messenger using deep links | [Buckets and linking](sender-linking.md) |
+| Find a profile by Telegram username | [Username lookup](sender-telegram-username.md) |
+| Report on message sends, delivery, reads, clicks, blocks, errors or latency | [Sender analytics](sender-analytics.md) |
 
 ### Mailings
 
-For stored letters, use the [Mailings SDK](references/mailings.md) to read a letter by path or send it from a template.
+For stored letters, use the [Mailings SDK](mailings.md) to read a letter by path or send it from a template.
 
 ### Google
 
@@ -99,16 +99,16 @@ For stored letters, use the [Mailings SDK](references/mailings.md) to read a let
 
 | Task | Reference |
 | --- | --- |
-| Find, create, reschedule or delete meetings; add Google Meet or recurrence | [Calendar events](references/google/calendar-events.md) |
-| Watch calendar changes, maintain a local copy and renew subscriptions | [Calendar sync](references/google/calendar-sync.md) |
-| Read or update files, create folders, or resolve file access through `/app/google` | [Drive](references/google/drive.md) |
-| Read or write cells, create spreadsheets or format sheets | [Sheets](references/google/sheets.md) |
-| Read, create or edit text documents | [Docs](references/google/docs.md) |
-| Create or edit presentations | [Slides](references/google/slides.md) |
+| Find, create, reschedule or delete meetings; add Google Meet or recurrence | [Calendar events](google-calendar-events.md) |
+| Watch calendar changes, maintain a local copy and renew subscriptions | [Calendar sync](google-calendar-sync.md) |
+| Read or update files, create folders, or resolve file access through `/app/google` | [Drive](google-drive.md) |
+| Read or write cells, create spreadsheets or format sheets | [Sheets](google-sheets.md) |
+| Read, create or edit text documents | [Docs](google-docs.md) |
+| Create or edit presentations | [Slides](google-slides.md) |
 
 ### Advertising APIs
 
-Use the server-side `@ads-cabinet/sdk` for live Yandex.Direct and VK Ads API access through connected cabinets. Before API calls, check that the Store application `adscabinet` is installed and the selected platform's cabinet is authorized. If the application is absent, tell the user to connect **«Рекламные кабинеты»**; if authorization or credentials are missing, tell them exactly what to configure in `/app/adscabinet`. Read [Advertising cabinets](references/ads-cabinet.md) for these checks, account selection, SDK methods, and error handling. An API integration request does not authorize installing the application or changing advertising campaigns.
+Use the server-side `@ads-cabinet/sdk` for live Yandex.Direct and VK Ads API access through connected cabinets. Before API calls, check that the Store application `adscabinet` is installed and the selected platform's cabinet is authorized. If the application is absent, tell the user to connect **«Рекламные кабинеты»**; if authorization or credentials are missing, tell them exactly what to configure in `/app/adscabinet`. Read [Advertising cabinets](ads-cabinet.md) for these checks, account selection, SDK methods, and error handling. An API integration request does not authorize installing the application or changing advertising campaigns.
 
 ### Analytics
 
@@ -116,31 +116,31 @@ Use recorded ClickHouse data for traffic reports, funnels, ad spend, acquisition
 
 | Task | Reference |
 | --- | --- |
-| Analyze visits, devices, pages, time on site or recorded business events | [Traffic](references/analytics/traffic.md) |
-| Analyze ad spend, CAC, ROI, ROAS or attribution by source ID/UTM | [Attribution](references/analytics/attribution.md) |
+| Analyze visits, devices, pages, time on site or recorded business events | [Traffic](analytics-traffic.md) |
+| Analyze ad spend, CAC, ROI, ROAS or attribution by source ID/UTM | [Attribution](analytics-attribution.md) |
 
 ### Other tasks
 
 | Task | Reference |
 | --- | --- |
-| Build a Vue web chat for support, a shared room, a webinar, or an AI agent | [chat-client.md](references/chat-client.md) |
-| Embed a GetCourse form | [getcourse-form.md](references/getcourse-form.md) |
-| Push realtime backend updates to a browser over a socket | [realtime.md](references/realtime.md) |
-| Build a live UI, choose/limit polling, or eliminate N+1 and repeated requests | [performance.md](references/performance.md) |
-| Render a video stored in Chatium | [video.md](references/video.md) |
-| Translate UI strings or edit `*.lang.yml` files | [i18n.md](references/i18n.md) |
-| Save a customer form and capture its CRM/analytics event | [forms.md](references/forms.md) |
-| Create payments, receipts or saved-card charges; list/count attempts or payments; handle payment callbacks or import historical payments | [payments.md](references/payments.md) |
-| Accept bonuses, tokens or an internal wallet balance through Pay; implement quote/debit/refund adapters or delegated balance charges | [internal-balance-payments.md](references/internal-balance-payments.md) |
-| Implement an external Pay provider, register full or partial transfers, or issue provider-side receipts | [payment-providers.md](references/payment-providers.md) |
-| Refund a payment or handle refund lifecycle hooks | [payment-refunds.md](references/payment-refunds.md) |
-| Create a PDF asynchronously from HTML or a URL | [pdf.md](references/pdf.md) |
-| Hash, sign, encrypt, or perform other cryptographic work | [crypto.md](references/crypto.md) |
-| Serve `robots.txt` or `sitemap.xml` | [seo.md](references/seo.md) |
-| Integrate Bitrix24 | [bitrix24.md](references/bitrix24.md) |
-| Integrate AmoCRM | [amocrm.md](references/amocrm.md) |
-| Reply to Instagram comments, check follows, or send Direct messages through Meta | [meta-instagram.md](references/meta-instagram.md) |
-| Add Yandex OAuth to a custom sign-in page | [yandex-oauth.md](references/yandex-oauth.md) |
+| Build a Vue web chat for support, a shared room, a webinar, or an AI agent | [chat-client.md](chat-client.md) |
+| Embed a GetCourse form | [getcourse-form.md](getcourse-form.md) |
+| Push realtime backend updates to a browser over a socket | [realtime.md](realtime.md) |
+| Build a live UI, choose/limit polling, or eliminate N+1 and repeated requests | [performance.md](performance.md) |
+| Render a video stored in Chatium | [video.md](video.md) |
+| Translate UI strings or edit `*.lang.yml` files | [i18n.md](i18n.md) |
+| Save a customer form and capture its CRM/analytics event | [forms.md](forms.md) |
+| Create payments, receipts or saved-card charges; list/count attempts or payments; handle payment callbacks or import historical payments | [payments.md](payments.md) |
+| Accept bonuses, tokens or an internal wallet balance through Pay; implement quote/debit/refund adapters or delegated balance charges | [internal-balance-payments.md](internal-balance-payments.md) |
+| Implement an external Pay provider, register full or partial transfers, or issue provider-side receipts | [payment-providers.md](payment-providers.md) |
+| Refund a payment or handle refund lifecycle hooks | [payment-refunds.md](payment-refunds.md) |
+| Create a PDF asynchronously from HTML or a URL | [pdf.md](pdf.md) |
+| Hash, sign, encrypt, or perform other cryptographic work | [crypto.md](crypto.md) |
+| Serve `robots.txt` or `sitemap.xml` | [seo.md](seo.md) |
+| Integrate Bitrix24 | [bitrix24.md](bitrix24.md) |
+| Integrate AmoCRM | [amocrm.md](amocrm.md) |
+| Reply to Instagram comments, check follows, or send Direct messages through Meta | [meta-instagram.md](meta-instagram.md) |
+| Add Yandex OAuth to a custom sign-in page | [yandex-oauth.md](yandex-oauth.md) |
 
 ## API source of truth
 

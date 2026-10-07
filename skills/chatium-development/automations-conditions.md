@@ -229,4 +229,4 @@ export const timeOfDayCondition = app
 - [ ] Условие зарегистрировано через `app.accountHook('@start/account-conditions', ...)`
 - [ ] Выбрана подходящая категория
 
-Для поиска уже зарегистрированных условий и чтения их схем см. [реестр](registry.md).
+Для поиска уже зарегистрированных условий и чтения их схем см. [реестр](automations-registry.md).

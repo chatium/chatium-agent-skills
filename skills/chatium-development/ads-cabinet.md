@@ -2,11 +2,11 @@
 
 Use this reference for live advertising API access from Chatium account or plugin code: inspecting cabinets, campaigns, groups, ads, keywords, statistics, or making a requested change. Import the server-side `@ads-cabinet/sdk`; it uses the cabinets connected in **«Рекламные кабинеты»**, refreshes supported tokens internally, and does not expose credentials. Inside the ads-cabinet source account use `/sdk`.
 
-For reports on already collected expenses, CAC, ROI, ROAS, or revenue attribution, use [Attribution](analytics/attribution.md) and `@traffic/sdk`. Direct API access does not require UTM configuration or automatic ClickHouse collection. Conversely, connecting a cabinet does not backfill collected analytics.
+For reports on already collected expenses, CAC, ROI, ROAS, or revenue attribution, use [Attribution](analytics-attribution.md) and `@traffic/sdk`. Direct API access does not require UTM configuration or automatic ClickHouse collection. Conversely, connecting a cabinet does not backfill collected analytics.
 
 ## Prerequisites: check in this order
 
-Run deployment checks only in the **consuming account's** Source Git workspace, following [chatium exec](../exec.md). The ads-cabinet development account is not evidence that another account has installed or configured the application. Local module declarations show available signatures, not live installation or credentials.
+Run deployment checks only in the **consuming account's** Source Git workspace, following [chatium exec](exec.md). The ads-cabinet development account is not evidence that another account has installed or configured the application. Local module declarations show available signatures, not live installation or credentials.
 
 ### 1. Application installed
 
@@ -100,7 +100,7 @@ if (campaignIds.length) {
 }
 ```
 
-`groupBy` is `campaign` (default), `adgroup`, `ad`, `keyword`, `day`, or `none`; `byDay` adds `Date` to a non-day grouping. Report dates are inclusive `YYYY-MM-DD`. The Reports API can prepare a report asynchronously; the SDK polls internally and may take about a minute. If still preparing, report that condition and retry the read later, without reconnecting a healthy cabinet. For recurring collection use [jobs](../jobs.md), not timers in application handlers.
+`groupBy` is `campaign` (default), `adgroup`, `ad`, `keyword`, `day`, or `none`; `byDay` adds `Date` to a non-day grouping. Report dates are inclusive `YYYY-MM-DD`. The Reports API can prepare a report asynchronously; the SDK polls internally and may take about a minute. If still preparing, report that condition and retry the read later, without reconnecting a healthy cabinet. For recurring collection use [jobs](jobs.md), not timers in application handlers.
 
 Report money is returned in ordinary currency units, not micros, in the advertiser's currency; do not assume RUB for every cabinet. `includeVat` defaults to true. Ordinary entity/raw API money fields still use the provider's native units; the report behavior does not redefine them. Missing numeric report cells can be `null`. IDs of 16+ digits are preserved as strings; pass them through as received and never coerce them to `Number`.
 

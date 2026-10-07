@@ -167,7 +167,7 @@ And feel free to use any explicit model provided you by user
 
 ## Инструменты генерации
 
-Передавай пользовательские функции через `tools`; их контракт и пример находятся в [tools.md](tools.md#tools-для-standalone-startcompletion). Встроенные инструменты включаются через `nativeTools`.
+Передавай пользовательские функции через `tools`; их контракт и пример находятся в [ai-tools.md](ai-tools.md#tools-для-standalone-startcompletion). Встроенные инструменты включаются через `nativeTools`.
 
 The difference between nativeTools and tools:
 
