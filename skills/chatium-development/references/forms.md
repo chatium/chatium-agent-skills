@@ -25,11 +25,7 @@ export const registrationCreateRoute = app.post('/')
       contacts: [{ type: 'email', value: req.body.email }],
       customer: {
         displayName: req.body.name,
-        utm: {
-          source: req.body.utmSource,
-          // Current SDK requires all UTM keys; this form only collects source.
-          medium: undefined, campaign: undefined, content: undefined, term: undefined,
-        },
+        ...(req.body.utmSource ? { utm: { source: req.body.utmSource } } : {}),
       },
       linkRecords: [registration],
     })
@@ -39,4 +35,4 @@ export const registrationCreateRoute = app.post('/')
   })
 ```
 
-The Vue form imports this route and calls `registrationCreateRoute.run(ctx, body)`. Decide explicitly whether CRM failure blocks the form; if a retry can repeat the Heap write, make the creation path idempotent.
+The Vue form imports this route and calls `registrationCreateRoute.run(ctx, body)`. On submission in the browser, read the actual query value, for example `new URLSearchParams(window.location.search).get('utm_source') || undefined`, and pass it as `utmSource`. Do the same for other UTM fields that this form accepts. The CRM SDK permits omitted UTM keys; do not fill uncollected keys with `undefined` placeholders or invent attribution. Validate accepted lengths and values in the POST route. Decide explicitly whether CRM failure blocks the form; if a retry can repeat the Heap write, make the creation path idempotent.
