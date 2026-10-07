@@ -73,7 +73,7 @@ Treat callbacks as authority: redirect URLs are browser UX and can be skipped or
 
 ## Provider and receipt
 
-Omit `providerId` to use the configured default. When a provider is requested, resolve its real ID with `findPaymentProviders(ctx, { providerKey })`; never invent one.
+Omit `providerId` to use the configured default. For development, call `getAllPaymentProviders(ctx)` to discover configured providers. If the account has no active provider, the call creates a test provider and returns its real `id` in `configured` with `isTest: true`. It does not create a test provider when another provider already exists; add one in Pay settings if needed. An existing test provider appears in `configured` even when hidden from buyer-facing `findPaymentProviders`. Pass a returned `id` as `providerId`; never invent IDs or rely on internal provider keys.
 
 For a receipt, supply an email contact (or a confirmed user email) and `items`. Each item needs `id`, `name`, `quantity`, and `price`; the sum of `quantity * price` must equal the payment amount. Optional fiscal fields are `vat`, `paymentObject`, `paymentMode`, `measure`, `measureName`, and `markingCode`. For a marked product, put `markingCode` on that item, not on the payment or `payload`.
 
