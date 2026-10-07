@@ -34,6 +34,7 @@ For an actionable business event with a known Staff+ recipient—such as a submi
 | Display stored files, upload in an app, or upload local files with the CLI | [storage.md](storage.md) |
 | Schedule or cancel background work | [jobs.md](jobs.md) |
 | Inspect deployed data, debug server code, or seed data | [exec.md](exec.md) |
+| Read platform logs for an account with an available Source Git checkout | [Account logs](references/account-logs.md) |
 | Inspect Store plugin permissions or install a plugin through `chatium exec` | [Store plugin installation](references/store-plugin-install.md) |
 | Notify account staff about a meaningful application event (a new lead, completed job, failed payment, etc.) | [Store notifications](references/store-notifications.md) |
 
