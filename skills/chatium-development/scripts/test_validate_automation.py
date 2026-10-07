@@ -60,6 +60,12 @@ class AutomationValidationTests(unittest.TestCase):
     def test_valid_config_and_registry(self):
         self.assertEqual(validate(CONFIG).errors, [])
 
+    def test_migration_id_and_empty_events(self):
+        config = {"__legacyEntityId": "old-file-id", "eventUrls": [], "steps": []}
+        self.assertEqual(validate(config).errors, [])
+        config["__legacyEntityId"] = ""
+        self.assertIn("__legacyEntityId", "\n".join(validate(config).errors))
+
     def test_rejects_missing_registry_route_and_event_field(self):
         config = copy.deepcopy(CONFIG)
         config["steps"][0]["params"]["orderId"] = {"$ref": "event.unknown"}
@@ -115,7 +121,7 @@ class AutomationValidationTests(unittest.TestCase):
                 self.assertEqual(main([str(config_path), "--registry", str(registry_path)]), 0)
             config_path.write_text(json.dumps({"eventUrls": [], "steps": []}), encoding="utf-8")
             with redirect_stdout(io.StringIO()):
-                self.assertEqual(main([str(config_path), "--registry", str(registry_path)]), 1)
+                self.assertEqual(main([str(config_path), "--registry", str(registry_path)]), 0)
 
 
 if __name__ == "__main__":

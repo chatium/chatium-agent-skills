@@ -12,7 +12,6 @@ const automation = await getAutomationByPath(
 if (!automation) throw new Error('Automation config is not available yet')
 const { items, total } = await getAutomationLogs(ctx, {
   automationId: automation.automationId,
-  branchName: 'main',
   limit: 50,
   includeSteps: true,
 })
@@ -27,8 +26,9 @@ const { items, total } = await getAutomationLogs(ctx, {
 содержать `automationId` (строку или массив), `executionId`, `workspacePath`,
 `branchName`, `includeUnknownBranch`, статус, временной диапазон и прочие
 фильтры из опубликованных typings. Без `branchName` сохраняется прежний
-охват SDK. С `branchName` возвращается эта ветка; если нужны также старые
-записи без сведений о ветке, укажи `includeUnknownBranch: true`.
+охват SDK, включая историю до миграции. С `branchName` возвращается эта ветка;
+если нужны также старые записи без сведений о ветке, укажи
+`includeUnknownBranch: true` **вместе** с `branchName`.
 
 У каждой записи есть канонический `automationId`, исходный
 `storedAutomationId`, исторический `automationPath` и
@@ -43,3 +43,13 @@ const { items, total } = await getAutomationLogs(ctx, {
 обрабатывает опубликованный `main`. После публикации изменения URL плагин
 сверяет всю группу подписок включённой автоматизации. Для старого конфига
 без достоверной даты создания или изменения интерфейс показывает `—`.
+
+Менять подписку можно только из `main`; до первого применённого поколения
+включение возвращает «Published main automations are still synchronizing».
+Копия файла с тем же `__legacyEntityId` получает конфликт идентичности:
+исправь копию до включения. Перенос через `git mv` сохраняет связь; если Git
+не распознал перенос, однозначная пара удаления и добавления обрабатывается
+как перенос. Неоднозначные случаи проверь вручную по постоянному ID.
+Удалённый конфиг выключается после повторной проверки через 24 часа.
+Невалидный конфиг не запускает действия; входящее событие отражается ошибкой
+в истории, а подписка остаётся до повторной проверки.
