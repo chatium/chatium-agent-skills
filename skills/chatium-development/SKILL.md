@@ -48,6 +48,10 @@ Agents run conversations with history and tools; their configuration lives in `*
 | Task | Reference |
 | --- | --- |
 | Create or edit an agent or department, use agents in Git branches, run conversations, or connect a transport | [Agents and SDK](references/ai/agents.md) |
+| Validate a standalone agent JSON, choose knowledge, tools, model or limits | [Agent config](references/ai/agent-config.md) |
+| Plan reminders, repeat follow-ups and stop autonomous work | [Agent autonomy](references/ai/autonomy.md) |
+| Distinguish model instructions, chain context, CRM and knowledge access | [Agent context and knowledge](references/ai/context-and-knowledge.md) |
+| Route a shared channel to one agent, hand off a customer, or verify routing in preview | [Agent routing and handoff](references/ai/routing-and-handoff.md) |
 | Receive an agent turn's output in your function via `directOutputTool` | [Agent direct output](references/ai/agents.md#directoutputtool) |
 | Run standalone generation with callbacks, native tools, images or video | [Generation](references/ai/generation.md) |
 | Create an agent tool, a direct-output function, or tools for `startCompletion` | [Tools](references/ai/tools.md) |
@@ -146,7 +150,7 @@ available preview panel. Follow [preview.md](preview.md) for the actual
 entity routes, branch selection, and Mailings folder limitations. Give a
 link as well; do not claim the preview opened unless the tool succeeded.
 Process maps and their presentation milestones belong to the `processes`
-skill. Agent preview routes are not defined here yet.
+skill. For an agent page use the route in [preview.md](preview.md).
 
 ## Publishing and branch preview
 

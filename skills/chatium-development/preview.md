@@ -33,6 +33,7 @@
 | Страница или лендинг | Реальный HTTP-маршрут страницы, например `/trial-class/register`; уточни по файлу маршрута и регистрации handler, не добавляй `.tsx` |
 | Письмо `.mailings/storage/<path>.message.yaml` | `/app/mailings/#/letter/<encodeURIComponent(path + '.message.yaml')>` — весь путь относительно `.mailings/storage/`, включая вложенные папки и расширение |
 | Автоматизация `*.automationConfig.json` | `/app/automations/~view?path=<encodeURIComponent(configPath)>` — путь к файлу конфига от корня аккаунта с расширением, без префикса `source-file:` |
+| Самостоятельный AI-агент | `/app/agent-process/agent/<encodeURIComponent(agentId)>` — фактический `agentId` получи через SDK после публикации файла `*.agent.json`; экран требует роль Admin |
 | Хранилище писем | `/app/mailings/#/store` |
 | Папка писем/серия | Открой хранилище и выбери папку в его дереве/карточках по фактическому UI; прямой ссылки на выбранную папку пока нет |
 | Статья `.knowledge-base/<path>.md` | `/app/knowledge/~/<path>.md` — убери префикс `.knowledge-base/`, сохрани структуру папок и расширение, кодируй каждый сегмент пути отдельно |
