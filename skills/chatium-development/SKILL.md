@@ -7,6 +7,8 @@ description: "Create and edit Chatium account and plugin code: Vue and file-base
 
 Work on the requested account or plugin behavior in its existing source. Respond in the user's language. The references contain development conventions as well as platform API details; examples demonstrate mechanisms, not a required project structure.
 
+Identify the requested project and existing entity before proposing project-specific code or paths. An open branch, a nearby `processes-v2` workspace, or a planned table/event does not by itself make a standalone page, mailing, or automation part of that process. If the named table or project cannot be found or matched unambiguously, ask which one the user means; until then, explain only the platform-level mechanism and do not build a solution around a guessed process event. Use `processes` for a confirmed change to an existing process or for a genuinely multi-stage customer journey, not for a single standalone component.
+
 Before working in a workspace or isolated module, read its `.CHATIUM-LLM.md` if present. When changing architecture, key functionality, or substantial project decisions, create or update that file, integrating information into its existing sections. Do not create a document per component or require documentation changes for a question-only response.
 
 ## Runtime and module boundaries
