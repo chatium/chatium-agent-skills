@@ -1,6 +1,6 @@
 ---
 name: chatium-development
-description: "Create and edit Chatium account and plugin code: Vue and file-based routes, Heap, auth, storage, jobs, and platform SDK integrations for agents, messaging, mailings, automations, payments, analytics, media, CRM, and Google services. Excludes Chatium platform backend development."
+description: "Create and edit Chatium account and plugin code: Vue and file-based routes, Heap, auth, storage, jobs, and platform SDK integrations for agents, messaging, mailings, automations, payments, analytics, Yandex.Direct and VK Ads, media, CRM, and Google services. Excludes Chatium platform backend development."
 ---
 
 # Chatium development
@@ -105,6 +105,10 @@ For stored letters, use the [Mailings SDK](references/mailings.md) to read a let
 | Read or write cells, create spreadsheets or format sheets | [Sheets](references/google/sheets.md) |
 | Read, create or edit text documents | [Docs](references/google/docs.md) |
 | Create or edit presentations | [Slides](references/google/slides.md) |
+
+### Advertising APIs
+
+Use the server-side `@ads-cabinet/sdk` for live Yandex.Direct and VK Ads API access through connected cabinets. Before API calls, check that the Store application `adscabinet` is installed and the selected platform's cabinet is authorized. If the application is absent, tell the user to connect **«Рекламные кабинеты»**; if authorization or credentials are missing, tell them exactly what to configure in `/app/adscabinet`. Read [Advertising cabinets](references/ads-cabinet.md) for these checks, account selection, SDK methods, and error handling. An API integration request does not authorize installing the application or changing advertising campaigns.
 
 ### Analytics
 
