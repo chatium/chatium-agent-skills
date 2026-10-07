@@ -22,7 +22,7 @@ const conditionRouteJson = condition?.toJSON()
 const conditionSchema = condition && (await condition.schema(ctx))
 ```
 
-Для событий конкретного workspace плагин использует `getWorkspaceEvents(ctx, rootWorkspace)`; без workspace — `getAccountEvents(ctx)`. Действия собирает его внутренний `plugin/sdk/getAutomationActions.ts` через хук `actions`; текущий публичный `@automations/sdk` этот метод не экспортирует. Для действий используй маршрут реестра, а при работе внутри плагина — `collectActions(ctx, workspacePath)` или `collectActions(ctx)` без workspace из `plugin/api/registry.ts`.
+Для событий конкретного workspace плагин использует `getWorkspaceEvents(ctx, rootWorkspace)`; без workspace — `getAccountEvents(ctx)`. `getAutomationActions(ctx, workspacePath?)` **экспортируется** из `@automations/sdk` и возвращает зарегистрированные `ActionRouteRef` из хука `actions`, а не готовые записи JSON для `--registry`. Для полного снимка `{ events, actions, conditions }` с `routeJson` и `inputSchema` используй защищённый `getRegistryRoute`; внутри плагина эти записи также собирают `collectActions(ctx, workspacePath)` или `collectActions(ctx)` из `plugin/api/registry.ts`. Не подменяй один формат другим.
 
 У ссылок действий и условий `.toJSON()` даёт точный `routeJson`, а `.schema(ctx)` — `meta`, `body` и `result`. В `meta` ищи `name`, `description`, `llmDescription`, `icon` и `category`; доступность полей сверяй с типами конкретной функции. Поле `.pattern` подходит для поиска кандидата, но не заменяет `routeJson`.
 
