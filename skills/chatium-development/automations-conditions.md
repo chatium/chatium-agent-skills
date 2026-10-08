@@ -7,7 +7,7 @@ description: >
 ## Условия (Conditions)
 
 Условия (conditions) — это функции проверки, которые возвращают `satisfied: true` или `satisfied: false`. Они могут использоваться в любых частях системы, где нужна проверка состояния.
-Например в автоматизациях для контроля продолжения выполнения (если условие не выполнено — автоматизация останавливается)
+Например в автоматизациях для контроля продолжения выполнения (если условие не выполнено — автоматизация останавливается). Для шага `continueCondition` различай ложное условие и ошибку проверки: при ошибке **бросай исключение**. Рантайм не считает возвращённое `{ success: false }` ошибкой шага; он может остановить цепочку как при обычном `satisfied: false`.
 Или в ИИ агентах для принятия решений на основе текущих данных.
 
 ### Когда создавать условия
@@ -79,7 +79,7 @@ input: s.object({
 ```typescript
 return { success: true, satisfied: true }   // Условие выполнено
 return { success: true, satisfied: false }  // Условие НЕ выполнено
-return { success: false }                   // Ошибка при проверке
+throw new Error('Проверка недоступна')     // Ошибка шага Automations
 ```
 
 ---
@@ -122,7 +122,7 @@ export const notHasOrderCondition = app
       return { success: true, satisfied: orders.length === 0 }
     } catch (error) {
       ctx.account.log('notHasOrderCondition error', { level: 'error', err: error })
-      return { success: false }
+      throw error
     }
   })
 ```
@@ -150,7 +150,7 @@ export const emailDomainMatchCondition = app
     const { email, domain } = input
 
     if (!email.includes('@')) {
-      return { success: false }
+      throw new Error('Неверный email')
     }
 
     const emailDomain = email.split('@')[1]?.toLowerCase()
@@ -194,7 +194,7 @@ export const timeOfDayCondition = app
     const startHour = params.input.startHour ?? 0
 
     const currentHour = utcToZonedTime(new Date(), timezone || 'UTC').getHours()
-    if (!Number.isFinite(currentHour)) return { success: false }
+    if (!Number.isFinite(currentHour)) throw new Error('Не удалось определить час')
 
     let satisfied: boolean
 
@@ -225,7 +225,7 @@ export const timeOfDayCondition = app
 - [ ] Указано понятное `name`, `description` и `llmDescription` в `.meta()`
 - [ ] Все параметры в `body` имеют `.meta({ title: '...' })`
 - [ ] Возвращается `{ success: boolean, satisfied: boolean }`
-- [ ] При ошибках возвращается `{ success: false }`
+- [ ] При ошибке проверки в Automations бросается исключение; `satisfied: false` означает только проверенное ложное условие
 - [ ] Условие зарегистрировано через `app.accountHook('@start/account-conditions', ...)`
 - [ ] Выбрана подходящая категория
 

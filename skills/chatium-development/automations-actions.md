@@ -10,6 +10,11 @@ description: >
 
 Действия (actions) — переиспользуемые функции, которые выполняют конкретные операции в рамках автоматизаций. Они используются как шаги (steps) в цепочках автоматизаций.
 
+Если действие в Automations не смогло выполнить обязательный шаг, после записи
+диагностики бросай исключение. Ответ `{ success: false }` рантайм отмечает
+предупреждением, но сам шаг считает завершённым; даже
+`settings.continueOnError: false` не остановит следующую отправку.
+
 > **⚠️ Это НЕ тулы для ИИ-агентов!** Тулы для AI-агентов регистрируются через хук `@start/agent/tools` и имеют другой контракт (body: `{ context, input }`). Действия для автоматизаций регистрируются через хук `@automations/actions` и используют контракт `{ context, params }`. Для AI-тула см. [Инструменты AI](ai-tools.md).
 
 ### Когда создавать действия для автоматизаций
@@ -85,10 +90,7 @@ export const myAction = app
         },
       }
     } catch (err: any) {
-      return {
-        success: false,
-        result: err.message || 'Unknown error',
-      }
+      throw err
     }
   })
 ```
@@ -163,8 +165,8 @@ params: s.object({
 
 | Поле | Тип | Описание |
 |------|-----|----------|
-| `success` | boolean | `true` — выполнено успешно, `false` — ошибка |
-| `result` | object \| string | Данные результата (при успехе) либо текст ошибки (при неудаче) |
+| `success` | boolean | `true` — шаг выполнен; ошибку обязательного действия передавай исключением |
+| `result` | object \| string | Данные успешного результата |
 
 ```typescript
 // Успешное выполнение
@@ -176,11 +178,8 @@ return {
   },
 }
 
-// Ошибка
-return {
-  success: false,
-  result: 'Не удалось отправить письмо: invalid email',
-}
+// Ошибка обязательного шага
+throw new Error('Не удалось отправить письмо: invalid email')
 ```
 
 ### Использование результата
@@ -270,10 +269,7 @@ export const sendEmailAction = app
       }
     } catch (err: any) {
       ctx.account.log('Email send failed', { level: 'error', err })
-      return {
-        success: false,
-        result: err.message,
-      }
+      throw err
     }
   })
 ```
@@ -315,18 +311,12 @@ export const addCrmCommentAction = app
     try {
       const client = await getCrmClientByEmail(ctx, email)
       if (!client) {
-        return {
-          success: false,
-          result: `Клиент с email ${email} не найден`,
-        }
+        throw new Error(`Клиент с email ${email} не найден`)
       }
 
       const deals = await getActiveCrmDeals(ctx, client.id)
       if (deals.length === 0) {
-        return {
-          success: false,
-          result: `У клиента ${email} нет активных сделок`,
-        }
+        throw new Error(`У клиента ${email} нет активных сделок`)
       }
 
       const result = await addCommentToDeal(ctx, deals[0].id, comment)
@@ -339,10 +329,7 @@ export const addCrmCommentAction = app
         },
       }
     } catch (err: any) {
-      return {
-        success: false,
-        result: err.message,
-      }
+      throw err
     }
   })
 ```
@@ -395,10 +382,7 @@ export const createTicketAction = app
         },
       }
     } catch (err: any) {
-      return {
-        success: false,
-        result: err.message,
-      }
+      throw err
     }
   })
 ```
@@ -423,7 +407,7 @@ export const createTicketAction = app
 - [ ] В `body` определены `context: s.unknown().optional()` и `params: s.object({...})`
 - [ ] Все параметры в `params` имеют `.meta({ title: '...' })`
 - [ ] Определена типизированная структура `.result()` с `success` и `result`
-- [ ] Возвращается `{ success: boolean, result }` — при ошибке `result` содержит текст ошибки
+- [ ] При успехе возвращается `{ success: true, result }`; при ошибке шага Automations бросается исключение
 - [ ] Полезные данные возвращаются в `result` для использования в последующих шагах автоматизации
 - [ ] Ошибки обрабатываются через `try/catch`
 - [ ] Действие зарегистрировано через `app.accountHook('@automations/actions', ...)`
