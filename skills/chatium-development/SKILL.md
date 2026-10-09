@@ -91,7 +91,7 @@ Sender manages customer communications over connected Telegram/VK/email/SMS and 
 
 ### Mailings
 
-For stored letters, use the [Mailings SDK](mailings.md) to read a letter by path or send it from a template.
+Read [Mailings](mailings.md) when creating or changing letters. It distinguishes new letters in Mailings storage from existing legacy YAML letters inside a `type: emails` process workspace; preserve the latter when extending that workspace. For stored letters, use the Mailings SDK to read a letter by path or send it from a template.
 
 ### Google
 
