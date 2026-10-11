@@ -79,6 +79,31 @@ EOF
 
 Folder rename/move/delete checks management rights. Move rejects the folder itself and its descendants as destinations. **Deleting a folder recursively deletes its descendants and file records.** Limit this to the user's requested subtree; it is not the storage service's soft-delete/restore API.
 
+## Publish a folder
+
+Use these methods when the user asks to publish a Vault folder or manage its public link. Publishing exposes its current files and nested folders, including files added later, to anyone with the link. For a temporary download of one file, use [Storage shared URLs](storage.md#protected-files-and-shared-urls). All three methods require folder management rights; creating a publication also requires a real user.
+
+| Method | Arguments after `ctx` | Result |
+| --- | --- | --- |
+| `publishVaultFolder` | `id: string`, optional `{ allowVideoDownload?: boolean }` | `VaultFolderPublication`: `{ token: string, url: string, allowVideoDownload: boolean }` |
+| `getVaultFolderPublication` | `id: string` | `VaultFolderPublicationState`: `{ published: boolean, token: string \| null, url: string \| null, allowVideoDownload: boolean }` |
+| `unpublishVaultFolder` | `id: string` | `void`; revokes the publication, preserving the folder/files |
+
+Pass the **Vault folder ID**. `getVaultFolderPublication` reads state without creating a link; an unpublished folder returns `published: false`, null token/URL and `allowVideoDownload: false`. Missing/inaccessible folders throw. `VaultFolder.publicLinks` controls upload protection, not publication state.
+
+```ts
+import { publishVaultFolder } from '@vault/sdk'
+
+export async function publishSelectedFolder(ctx: app.Ctx, folderId: string) {
+  const publication = await publishVaultFolder(ctx, folderId)
+  return { url: publication.url }
+}
+```
+
+Return the SDK's `url` (`/app/vault/share~<token>` on the consuming account). It has no expiry and remains stable while published. Repeating publication reuses the same token/URL. A new publication hides the video download button by default (`allowVideoDownload: false`); other files remain downloadable. Explicit `true`/`false` updates this setting without changing the URL; omitting it preserves the existing setting. The option controls the download button, while video viewing remains available.
+
+After publication, verify `published` and the returned URL through `getVaultFolderPublication`; inspect that state first after an uncertain write. After revocation, verify `published: false`. Revoking an unpublished folder is allowed; publishing again after revocation creates a new token. Revocation closes the publication page immediately, while previously issued signed file URLs remain valid until expiry and public originals remain public. Publication itself preserves original hash protection; it serves content through temporary shared URLs. Independently published descendants/files retain their own links.
+
 ## Upload and register in Vault
 
 | Method | Arguments after `ctx` | Result |
