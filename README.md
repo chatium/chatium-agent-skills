@@ -22,3 +22,5 @@ component separation, workspace layout, and one `/` route per file are intention
 skill conventions, not platform limitations. The skill concerns application source
 development; account connection
 and source delivery are outside its scope.
+
+Maintainers: [regression tests and baseline workflow](https://github.com/chatium/ai-harness/blob/main/evals/regression/README.md) cover Storage/Vault behavior. See [AGENTS.md](AGENTS.md) when extending the skill.
