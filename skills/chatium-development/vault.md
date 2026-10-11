@@ -70,7 +70,7 @@ EOF
 | Method | Arguments after `ctx` | Result |
 | --- | --- | --- |
 | `createVaultFolder` | `CreateVaultFolderParams`: `{ name: string, parentId?: string \| null, description?: string \| null }` | New `VaultFolder` |
-| `updateVaultFolder` | `id: string, params: UpdateVaultFolderParams` | Fresh `VaultFolder`; see [metadata](#folder-metadata) |
+| `updateVaultFolder` | `id: string, params: UpdateVaultFolderParams` | Fresh `UpdatedVaultFolder`, with optional `publication`; see [metadata](#folder-metadata) and [publication](#publish-a-folder) |
 | `ensureVaultFolders` | `paths: string[][]`, optional `parentId: string \| null` | `{ path: string[], id: string }[]` for every path prefix |
 | `renameVaultFolder` | `id: string, name: string` | Updated `VaultFolder`; deprecated, prefer `updateVaultFolder(ctx, id, { name })` |
 | `moveVaultFolder` | `id: string, parentId: string \| null` | Updated `VaultFolder`; `null` moves to root |
@@ -82,7 +82,7 @@ Folder rename/move/delete checks management rights. Move rejects the folder itse
 
 ### Folder metadata
 
-`updateVaultFolder` requires management rights. All `UpdateVaultFolderParams` fields are optional; omission/`undefined` preserves the field. Moving uses the separate `moveVaultFolder` method; `parentId` is not an update field.
+`updateVaultFolder` requires management rights. All `UpdateVaultFolderParams` fields are optional; omission/`undefined` preserves the field. It returns `UpdatedVaultFolder extends VaultFolder`, with `publication?: VaultFolderPublicationState` present when `published` or `allowVideoDownload` was supplied. Without those parameters, absence of `publication` says nothing about current publication state. Moving uses the separate `moveVaultFolder` method; `parentId` is not an update field.
 
 | Field | Type and behavior |
 | --- | --- |
@@ -93,31 +93,38 @@ Folder rename/move/delete checks management rights. Move rejects the folder itse
 | `publicLinks` | Boolean controlling new uploads through Vault. Any ancestor's `true` enables public uploads in descendants; a child's `false` leaves that inheritance active. Existing hashes retain their access mode; an independent Storage upload uses its own `protected` option |
 | `coverHash` | Existing public image hash or `null` to clear |
 | `coverFileId` | Visible Vault image **record ID**, including one in another folder, or `null` to clear |
+| `published` | Boolean: `true` creates/keeps the public folder link; `false` revokes it |
+| `allowVideoDownload` | Boolean controlling the video download button in the publication; requires an existing publication or `published: true` in the same call |
 
-Pass only one of `coverHash` / `coverFileId`. Selecting `coverFileId` permanently makes the image public through `makeFilePublic`, with `createPublicCopy` as fallback. Choose a cover whose public use is authorized. Clearing the cover removes its assignment, without deleting or protecting the image again. Metadata is written before cover processing, so a cover failure may leave other fields updated: read `getVaultFolder` before retrying. `publicLinks` is an upload setting; manage public folder pages with the publication methods below.
+Pass only one of `coverHash` / `coverFileId`. Selecting `coverFileId` permanently makes the image public through `makeFilePublic`, with `createPublicCopy` as fallback. Choose a cover whose public use is authorized. Clearing the cover removes its assignment, without deleting or protecting the image again; a same-call `published: true` may automatically select a replacement image. Metadata, cover and publication writes are sequential; a later failure may leave earlier fields updated. Read `getVaultFolder` and, for publication changes, `getVaultFolderPublication` before retrying. `publicLinks` controls uploads; `published` controls the public folder page. `createVaultFolder` accepts name/parent/description; other settings use a subsequent update with the created ID.
 
 ## Publish a folder
 
-Use these methods when the user asks to publish a Vault folder or manage its public link. Publishing exposes its current files and nested folders, including files added later, to anyone with the link. For a temporary download of one file, use [Storage shared URLs](storage.md#protected-files-and-shared-urls). All three methods require folder management rights; creating a publication also requires a real user.
+When the user asks to publish a Vault folder or manage its public link, use `updateVaultFolder`. Publishing exposes its current files and nested folders, including files added later, to anyone with the link. For a temporary download of one file, use [Storage shared URLs](storage.md#protected-files-and-shared-urls). Writes and publication reads require folder management rights; creating a publication also requires a real user.
 
-| Method | Arguments after `ctx` | Result |
+| Intent | Call | Publication result |
 | --- | --- | --- |
-| `publishVaultFolder` | `id: string`, optional `{ allowVideoDownload?: boolean }` | `VaultFolderPublication`: `{ token: string, url: string, allowVideoDownload: boolean }` |
-| `getVaultFolderPublication` | `id: string` | `VaultFolderPublicationState`: `{ published: boolean, token: string \| null, url: string \| null, allowVideoDownload: boolean }` |
-| `unpublishVaultFolder` | `id: string` | `void`; revokes the publication, preserving the folder/files |
+| Create/keep link | `updateVaultFolder(ctx, folderId, { published: true })` | `updated.publication` with `published: true`, token/URL and the current video setting |
+| Revoke link | `updateVaultFolder(ctx, folderId, { published: false })` | `updated.publication` with `published: false`, null token/URL and `allowVideoDownload: false`; folder/files remain |
+| Change video setting | `updateVaultFolder(ctx, folderId, { allowVideoDownload })`, with a boolean value | Updated publication; throws if no publication exists |
+| Read without mutation | `getVaultFolderPublication(ctx, folderId)` | `VaultFolderPublicationState`: `{ published: boolean, token: string \| null, url: string \| null, allowVideoDownload: boolean }` |
 
 Pass the **Vault folder ID**. `getVaultFolderPublication` reads state without creating a link; an unpublished folder returns `published: false`, null token/URL and `allowVideoDownload: false`. Missing/inaccessible folders throw. `VaultFolder.publicLinks` controls upload protection, not publication state.
 
 ```ts
-import { publishVaultFolder } from '@vault/sdk'
+import { updateVaultFolder } from '@vault/sdk'
 
 export async function publishSelectedFolder(ctx: app.Ctx, folderId: string) {
-  const publication = await publishVaultFolder(ctx, folderId)
+  const folder = await updateVaultFolder(ctx, folderId, { published: true })
+  const publication = folder.publication
+  if (!publication?.published || !publication.url) {
+    throw new Error('Vault did not return a published link')
+  }
   return { url: publication.url }
 }
 ```
 
-Return the SDK's `url` (`/app/vault/share~<token>` on the consuming account). It has no expiry and remains stable while published. Repeating publication reuses the same token/URL. A new publication hides the video download button by default (`allowVideoDownload: false`); other files remain downloadable. Explicit `true`/`false` updates this setting without changing the URL; omitting it preserves the existing setting. The option controls the download button, while video viewing remains available.
+Return `updated.publication.url` (`/app/vault/share~<token>` on the consuming account). It has no expiry and remains stable while published. Repeating `published: true` reuses the same token/URL. A new publication hides the video download button by default (`allowVideoDownload: false`); other files remain downloadable. Explicit `allowVideoDownload: true/false` updates this setting without changing the URL; omission preserves the existing setting. Combining `published: false` with any `allowVideoDownload` is rejected before writes. The option controls the download button, while video viewing remains available.
 
 After publication, verify `published` and the returned URL through `getVaultFolderPublication`; inspect that state first after an uncertain write. After revocation, verify `published: false`. Revoking an unpublished folder is allowed; publishing again after revocation creates a new token. Revocation closes the publication page immediately, while previously issued signed file URLs remain valid until expiry and public originals remain public. Protected content uses temporary shared URLs. **The cover is an exception:** publication fixes a public cover, choosing an image directly in the folder if needed, and makes that image public or creates a public copy. Revocation does not protect the cover again. Independently published descendants/files retain their own links.
 
