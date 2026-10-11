@@ -1,6 +1,6 @@
 ---
 name: chatium-development
-description: "Create and edit Chatium account and plugin code: Vue and file-based routes, Heap, auth, storage, jobs, and platform SDK integrations for agents, messaging, mailings, automations, payments, analytics, Yandex.Direct and VK Ads, media, CRM, and Google services. Excludes Chatium platform backend development."
+description: "Create and edit Chatium account and plugin code: Vue and file-based routes, Heap, auth, files and Vault, jobs, and platform SDK integrations for agents, messaging, mailings, automations, payments, analytics, Yandex.Direct and VK Ads, media, CRM, and Google services. Excludes Chatium platform backend development."
 ---
 
 # Chatium development
@@ -37,7 +37,8 @@ For an actionable business event with a known Staff+ recipient—such as a submi
 | Define/change a table, write records, handle Money or links | [heap.md](heap.md) |
 | Filter, paginate, search, aggregate, or batch-load records | [heap-filter.md](heap-filter.md) |
 | Enforce access, authenticate, or work with profiles/users | [auth.md](auth.md) |
-| Display stored files, upload in an app, or upload local files with the CLI | [storage.md](storage.md) |
+| Upload, download, read or create a file, obtain file URLs, or use `@app/storage` | [storage.md](storage.md) |
+| Work with «Хранилище», «Файловое хранилище», «Мой диск» / Vault: folders, registered files, or a file picker | [vault.md](vault.md) |
 | Schedule or cancel background work | [jobs.md](jobs.md) |
 | Inspect deployed data, debug server code, or seed data | [exec.md](exec.md) |
 | Read platform logs for an account with an available Source Git checkout | [Account logs](account-logs.md) |
@@ -47,6 +48,10 @@ For an actionable business event with a known Staff+ recipient—such as a submi
 ## Specialized references
 
 Read the article matching the task directly. Follow links inside it only when their stated condition applies. When a reference requires deployed account data, use [chatium exec](exec.md) from the relevant workspace.
+
+### Files and Vault
+
+When the user says **«Хранилище»** or **«Файловое хранилище»**, use the application **Vault** and its `@vault/sdk`; read [Vault](vault.md). For file bytes, uploads, downloads and URLs, use the platform's `@app/storage`; read [Stored files](storage.md). A task can require both: upload the content to FileService, then register the returned hash in the requested Vault folder. These are separate operations with separate identifiers.
 
 ### AI
 
