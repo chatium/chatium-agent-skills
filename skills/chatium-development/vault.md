@@ -65,6 +65,59 @@ return { folders, files }
 EOF
 ```
 
+## Reuse existing materials
+
+When the user asks to use a logo or their photographs from Vault, find the existing source with the public search methods. Resolve the user's project scope first, then search inside it. Search returns metadata and hashes; it does not inspect image pixels or document contents.
+
+| Method | Arguments after `ctx` | Result |
+| --- | --- | --- |
+| `searchVaultFolders` | `{ query: string, parentId?, recursive?, offset?, limit? }` | `VaultPage<VaultFolderSearchItem>`: folder DTO plus `path: { id, name }[]`, including itself |
+| `searchVaultFiles` | Optional `{ query?, folderId?, recursive?, kind?, offset?, limit? }` | `VaultPage<VaultFileSearchItem>`: file DTO plus `folderPath: { id, name }[]` |
+
+Folder queries must be nonempty and match name or description; use `listVaultFolders` to browse immediate children without a query. File queries match name or visible folder path; an omitted/empty file query collects all files in scope. Matching is a case-insensitive substring, not semantic search. File `kind` is `any` (default), `image`, `video` or `audio`; it uses MIME or filename extension. Results preserve separate record IDs with the same hash. Both searches use the page contract above; fetch every page needed for selection.
+
+Omitted/`undefined` scope searches all visible folders or files, including the caller's personal root files. `searchVaultFiles(ctx, { folderId: null })` searches **only that personal root**. A folder ID limits file search to that folder and, by default, its descendants. `parentId` limits folder search to descendants, excluding the parent itself. `recursive: false` with a folder ID searches only immediate children/files; for a global folder search it searches visible roots. Paths include visible ancestors only; a hidden ancestor is not exposed. These defaults differ from the nonrecursive list methods.
+
+For a request by category such as «мои фотографии», resolve the matching materials folder **before collecting files**. An existing **«Фотографии»** folder is the source for that request, even when the user did not name the folder explicitly. Collect images from its subtree; additional project branches require an explicit user request. The project folder sets the search boundary, while the matching materials folder sets the source boundary. Selection is complete when every selected record belongs to that source subtree. If no suitable folder exists, expand the search within the user's scope; if several folders are equally plausible, clarify the source.
+
+For example, after resolving the project folder ID, select its photo source first, then collect images using that source ID:
+
+```ts
+import { searchVaultFolders, searchVaultFiles } from '@vault/sdk'
+import type { VaultPage } from '@vault/sdk'
+
+async function allPages<T>(load: (offset: number) => Promise<VaultPage<T>>) {
+  const items: T[] = []
+  for (let offset = 0; ; ) {
+    const page = await load(offset)
+    items.push(...page.items)
+    if (!page.hasMore) return items
+    if (!page.items.length) throw new Error('Empty Vault page')
+    offset = page.offset + page.items.length
+  }
+}
+
+export async function findProjectPhotos(ctx: app.Ctx, projectId: string) {
+  const candidates = await allPages(offset => searchVaultFolders(ctx, {
+    query: 'Фотографии', parentId: projectId, offset, limit: 500,
+  }))
+  if (candidates.length !== 1) {
+    return { status: candidates.length ? 'needs_clarification' : 'not_found', candidates }
+  }
+  const source = candidates[0]!
+  const files = await allPages(offset => searchVaultFiles(ctx, {
+    folderId: source.id, kind: 'image', recursive: true, offset, limit: 500,
+  }))
+  return { status: 'found', source, files }
+}
+```
+
+For a logo, search images by likely filename terms (`логотип`, `logo`) within the project and inspect returned names and paths, including nested brand/materials folders. Merge searches by **record ID**. Use an existing matching image; ask which candidate to use when the context leaves several plausible logos. If no term matches, inspect images in relevant brand folders before declaring the logo absent. A filename match is a candidate, not proof of its visual content.
+
+Use the selected file's `hash` with [Storage display or shared URL helpers](storage.md#display-by-hash), and save that hash when assigning an application image field. Reusing content preserves its existing Vault registration and access mode. Verify the resulting image field or HTML uses the selected content and that a gallery contains exactly the selected source records.
+
+Carry the selected DTOs into results programmatically: map their `id`, `hash` and `name` from the SDK response, generate URLs from those same objects, and save the JSON output of `chatium exec` directly to a local file. Treat IDs and hashes as opaque strings. Before final use, check selected record IDs with `getVaultFile` (or reconcile them against the saved SDK response); a working image URL alone proves content access, not the record's identity.
+
 ## Create and change folders
 
 | Method | Arguments after `ctx` | Result |

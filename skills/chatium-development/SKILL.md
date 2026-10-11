@@ -38,7 +38,7 @@ For an actionable business event with a known Staff+ recipient—such as a submi
 | Filter, paginate, search, aggregate, or batch-load records | [heap-filter.md](heap-filter.md) |
 | Enforce access, authenticate, or work with profiles/users | [auth.md](auth.md) |
 | Upload, download, read or create a file, obtain file URLs, or use `@app/storage` | [storage.md](storage.md) |
-| Work with «Хранилище», «Файловое хранилище», «Мой диск» / Vault: folders and their settings/covers, registered files, public folder links, or a file picker | [vault.md](vault.md) |
+| Work with «Хранилище», «Файловое хранилище», «Мой диск» / Vault: find/reuse existing materials, folders and their settings/covers, registered files, public folder links, or a file picker | [vault.md](vault.md) |
 | Schedule or cancel background work | [jobs.md](jobs.md) |
 | Inspect deployed data, debug server code, or seed data | [exec.md](exec.md) |
 | Read platform logs for an account with an available Source Git checkout | [Account logs](account-logs.md) |
@@ -52,6 +52,8 @@ Read the article matching the task directly. Follow links inside it only when th
 ### Files and Vault
 
 When the user says **«Хранилище»** or **«Файловое хранилище»**, use the application **Vault** and its `@vault/sdk`; read [Vault](vault.md). For file bytes, uploads, downloads and URLs, use the platform's `@app/storage`; read [Stored files](storage.md). A task can require both: upload the content to FileService, then register the returned hash in the requested Vault folder. These are separate operations with separate identifiers.
+
+When using materials already in Vault, resolve the [existing source](vault.md#reuse-existing-materials) before collecting files or building URLs.
 
 ### AI
 
