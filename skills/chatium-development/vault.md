@@ -21,7 +21,7 @@ Inspect the current exported `.d.ts` before use. Older installed typings may inc
 | `VaultFile.hash` | FileService content hash; use with `@app/storage` for URLs or content |
 | `VaultFile.publicCopyHash` | Optional existing public copy; it may be `null`. Do not publish a protected file merely to display or download it |
 
-`VaultFile` also contains `folderId`, `name`, `mediaType`, `size`, `source`, `userId`, `posterHash` and `createdAt`. `mediaType` in this model is the MIME value supplied at registration (for example `text/csv`), not a FileService category filter. Dates in these DTOs are strings. One hash can have several Vault records in different folders.
+`VaultFolder.description` is plain text or `null`; get/list/create/update return it. `VaultFile` also contains `folderId`, `name`, `mediaType`, `size`, `source`, `userId`, `posterHash` and `createdAt`. `mediaType` in this model is the MIME value supplied at registration (for example `text/csv`), not a FileService category filter. Dates in these DTOs are strings. One hash can have several Vault records in different folders.
 
 All methods below are server-side named exports from `@vault/sdk`, take `ctx` first and return Promises. They return DTOs/pages directly or throw; there is no `{ ok, result }` wrapper.
 
@@ -69,15 +69,32 @@ EOF
 
 | Method | Arguments after `ctx` | Result |
 | --- | --- | --- |
-| `createVaultFolder` | `{ name: string, parentId?: string \| null }` | New `VaultFolder` |
+| `createVaultFolder` | `CreateVaultFolderParams`: `{ name: string, parentId?: string \| null, description?: string \| null }` | New `VaultFolder` |
+| `updateVaultFolder` | `id: string, params: UpdateVaultFolderParams` | Fresh `VaultFolder`; see [metadata](#folder-metadata) |
 | `ensureVaultFolders` | `paths: string[][]`, optional `parentId: string \| null` | `{ path: string[], id: string }[]` for every path prefix |
-| `renameVaultFolder` | `id: string, name: string` | Updated `VaultFolder` |
+| `renameVaultFolder` | `id: string, name: string` | Updated `VaultFolder`; deprecated, prefer `updateVaultFolder(ctx, id, { name })` |
 | `moveVaultFolder` | `id: string, parentId: string \| null` | Updated `VaultFolder`; `null` moves to root |
 | `deleteVaultFolder` | `id: string` | `{ folders, files }` counts after recursive deletion |
 
 `createVaultFolder` creates a new folder, including when a name is reused. For an existing target, read its hierarchy first. When creating an import tree, `ensureVaultFolders(ctx, [['Reports', '2026']], parentId)` reuses matching sibling names and creates missing prefixes. It returns both `['Reports']` and `['Reports', '2026']`, not one result per requested leaf. Pass nonempty path segments, at most ten segments per path and 500 paths per call; longer/larger inputs are truncated. Read before retrying after an uncertain result or if duplicate siblings already exist.
 
 Folder rename/move/delete checks management rights. Move rejects the folder itself and its descendants as destinations. **Deleting a folder recursively deletes its descendants and file records.** Limit this to the user's requested subtree; it is not the storage service's soft-delete/restore API.
+
+### Folder metadata
+
+`updateVaultFolder` requires management rights. All `UpdateVaultFolderParams` fields are optional; omission/`undefined` preserves the field. Moving uses the separate `moveVaultFolder` method; `parentId` is not an update field.
+
+| Field | Type and behavior |
+| --- | --- |
+| `name` | Nonempty trimmed string |
+| `description` | Plain text, trimmed, at most 10,000 characters; `null` or an empty string clears it, returning `null`. Newlines remain; Vault and published folder pages display it as text |
+| `access` | `'private'`, `'staff'`, `'admins'` or `'inherit'`; inheritance is valid only for a nested folder and uses the nearest ancestor setting. Changing it does not revoke public publications |
+| `position` | Integer ≥ 0 for display order within the parent |
+| `publicLinks` | Boolean controlling new uploads through Vault. Any ancestor's `true` enables public uploads in descendants; a child's `false` leaves that inheritance active. Existing hashes retain their access mode; an independent Storage upload uses its own `protected` option |
+| `coverHash` | Existing public image hash or `null` to clear |
+| `coverFileId` | Visible Vault image **record ID**, including one in another folder, or `null` to clear |
+
+Pass only one of `coverHash` / `coverFileId`. Selecting `coverFileId` permanently makes the image public through `makeFilePublic`, with `createPublicCopy` as fallback. Choose a cover whose public use is authorized. Clearing the cover removes its assignment, without deleting or protecting the image again. Metadata is written before cover processing, so a cover failure may leave other fields updated: read `getVaultFolder` before retrying. `publicLinks` is an upload setting; manage public folder pages with the publication methods below.
 
 ## Publish a folder
 
@@ -102,7 +119,7 @@ export async function publishSelectedFolder(ctx: app.Ctx, folderId: string) {
 
 Return the SDK's `url` (`/app/vault/share~<token>` on the consuming account). It has no expiry and remains stable while published. Repeating publication reuses the same token/URL. A new publication hides the video download button by default (`allowVideoDownload: false`); other files remain downloadable. Explicit `true`/`false` updates this setting without changing the URL; omitting it preserves the existing setting. The option controls the download button, while video viewing remains available.
 
-After publication, verify `published` and the returned URL through `getVaultFolderPublication`; inspect that state first after an uncertain write. After revocation, verify `published: false`. Revoking an unpublished folder is allowed; publishing again after revocation creates a new token. Revocation closes the publication page immediately, while previously issued signed file URLs remain valid until expiry and public originals remain public. Publication itself preserves original hash protection; it serves content through temporary shared URLs. Independently published descendants/files retain their own links.
+After publication, verify `published` and the returned URL through `getVaultFolderPublication`; inspect that state first after an uncertain write. After revocation, verify `published: false`. Revoking an unpublished folder is allowed; publishing again after revocation creates a new token. Revocation closes the publication page immediately, while previously issued signed file URLs remain valid until expiry and public originals remain public. Protected content uses temporary shared URLs. **The cover is an exception:** publication fixes a public cover, choosing an image directly in the folder if needed, and makes that image public or creates a public copy. Revocation does not protect the cover again. Independently published descendants/files retain their own links.
 
 ## Upload and register in Vault
 
