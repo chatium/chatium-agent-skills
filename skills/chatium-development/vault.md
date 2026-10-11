@@ -207,7 +207,9 @@ export async function registerUploadedFile(
 }
 ```
 
-After a CLI upload, use its `file_hash` in this same registration step through `chatium exec`. For a server-generated report, first obtain the stored hash from [text-file creation](storage.md#create-a-text-file-on-the-backend) or [PDF generation](pdf.md), then register it in the selected folder. Persist the resulting Vault ID when later mutations should affect that registration.
+For files on the user's local disk, use [`chatium storage upload`](storage.md#upload-local-files-with-the-cli), then register each successful `file_hash` through `chatium exec`. Match each receipt to its source file: the Vault name is the original basename, `size` is its byte count, and `mediaType` is its MIME type. Quote paths containing spaces. The backend registration call receives hashes and metadata; it cannot read a local path. Verify the returned records belong to the intended folder, or the caller's personal root when requested.
+
+For a server-generated report, first obtain the stored hash from [text-file creation](storage.md#create-a-text-file-on-the-backend) or [PDF generation](pdf.md), then register it in the selected folder. Persist the resulting Vault ID when later mutations should affect that registration.
 
 `putVaultFile` creates a new model each time; it is not an upsert. `putVaultFiles` processes at most 500 inputs and may have created earlier records before a later error. Split larger imports into bounded batches. After an uncertain result, list the destination and reconcile hashes/IDs before retrying registration. Retain successful upload hashes so failed registration does not cause another content upload.
 

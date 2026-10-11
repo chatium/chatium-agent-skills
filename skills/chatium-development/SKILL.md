@@ -51,7 +51,9 @@ Read the article matching the task directly. Follow links inside it only when th
 
 ### Files and Vault
 
-When the user says **«Хранилище»** or **«Файловое хранилище»**, use the application **Vault** and its `@vault/sdk`; read [Vault](vault.md). For file bytes, uploads, downloads and URLs, use the platform's `@app/storage`; read [Stored files](storage.md). A task can require both: upload the content to FileService, then register the returned hash in the requested Vault folder. These are separate operations with separate identifiers.
+Choose from the user's requested source and destination. **«Загрузи файлы в хранилище»** and **«Найди в файловом хранилище фотографии»** refer to the application **Vault** and its `@vault/sdk`; read [Vault](vault.md). Local uploads to Vault require both [CLI upload](storage.md#upload-local-files-with-the-cli) and [registration](vault.md#upload-and-register-in-vault) in the intended folder. File bytes and Vault records have separate identifiers; verify both before reporting completion.
+
+For ordinary website or catalog uploads without a Vault source or destination in the task, use [Storage](storage.md) directly: upload the photographs, save their hashes in the application's file/image fields, and obtain display URLs with `@app/storage`. Vault registration belongs to tasks that ask to use the file-storage application; its installation alone does not change the destination.
 
 When using materials already in Vault, resolve the [existing source](vault.md#reuse-existing-materials) before collecting files or building URLs.
 
