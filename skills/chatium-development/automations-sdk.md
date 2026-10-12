@@ -18,10 +18,14 @@ const { items, total } = await getAutomationLogs(ctx, {
 ```
 
 `getAutomationByPath` возвращает `null` либо
-`{ automationId, branchName, filePath, sourceFileId, status, error }`. `automationId` —
+`{ automationId, branchName, filePath, sourceFileId, status, error, enabled }`. `automationId` —
 постоянная идентичность; `sourceFileId` меняется при переносе файла.
 `invalid` и `identity_conflict` тоже возвращаются по пути с причиной в `error`;
 включать такую автоматизацию нельзя.
+`status: 'ready'` означает, что конфиг применён, но не подтверждает включённую
+подписку. `enabled` читает фактическое состояние подписки: перед отправкой
+события в `main` проверь оба поля. Для preview-ветки `enabled` всегда `false`,
+даже если автоматизация с тем же ID включена в `main`.
 Не составляй ID автоматизации из `source-file:<path>`.
 
 `getAutomationLogs(ctx, query)` возвращает `{ items, total }`. Запрос может
