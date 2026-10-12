@@ -1,6 +1,6 @@
 # Store notifications for account staff
 
-When implementing a meaningful event that an account operator should act on or know about—such as a submitted lead form, a new application, a completed long-running job, or a failed payment—include a Store Inbox notification in the server-side success path. **This API is only for notifying account staff and administrators (Staff+). Never use it as a mailing or notification channel for ordinary users or customers.** A landing page view, button click, or routine technical operation is not by itself a reason to notify. This complements the business/CRM event; it does not replace saving the record or capturing the event. If the responsible staff member or role cannot be established from the task and existing data, ask rather than guessing an audience.
+Use this API when the project has chosen Store Inbox as the channel for an event that account staff must handle. A protected work queue or another agreed channel can be used instead. **Store notifications are only for account staff and administrators (Staff+), never ordinary users or customers.** A landing page view, button click, or routine technical operation is not by itself a reason to notify. Store complements the business/CRM event; it does not replace saving the record or capturing the event. Establish the responsible staff member or role before sending.
 
 ## Producer API
 
@@ -51,4 +51,4 @@ app.pluginHook('@store/get-notification-types', ctx => ({
 }))
 ```
 
-Before claiming the integration works, refresh stale `@store/sdk` typings/dependencies if the method is missing, typecheck the producer, and send one event on a test account. Check the Store Inbox and the account/job logs: dispatch may be queued or filtered. The Store Inbox entry in the shared sidebar has a separate rollout; verify that it is enabled for the target account (currently the UI rollout is limited to `sandbox-r`).
+Before claiming an elected Store integration works, refresh stale `@store/sdk` typings/dependencies if the method is missing, typecheck the producer, and send one event on a test account. Check the Store Inbox and account/job logs: `queued` alone does not prove that a staff member saw the item. Verify the Inbox UI is enabled for the target account. When Store is outside the task scope, do not make this check a condition for accepting unrelated process behavior.

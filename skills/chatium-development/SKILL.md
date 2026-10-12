@@ -27,7 +27,7 @@ Before working in a workspace or isolated module, read its `.CHATIUM-LLM.md` if 
 ## Read for the task
 
 Load only references covering the change; a link does not require reading unrelated examples. Resolve linked filenames from the directory containing this `SKILL.md`.
-For an actionable business event with a known Staff+ recipient—such as a submitted lead, a completed job, or a failed payment—implement a Store Inbox notification alongside the business event; use [Store notifications](store-notifications.md). This mechanism is only for account staff and administrators, never for ordinary users or customers. If the staff audience is unclear, establish it before sending.
+For a business event that needs staff action—such as a submitted lead or failed payment—identify the responsible Staff+ role and a dependable way to see and handle the work. A protected work queue or an agreed notification channel may serve this purpose. Use [Store notifications](store-notifications.md) when Store Inbox is the chosen channel; do not add it automatically to every process. Store notifications are never a customer messaging channel. If responsibility or the channel is unclear, resolve that before claiming the work is covered.
 
 | Task | Reference |
 | --- | --- |
