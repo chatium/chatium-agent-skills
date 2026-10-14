@@ -1,6 +1,6 @@
 ---
 name: chatium-development
-description: "Create and edit Chatium account and plugin code: Vue and file-based routes, Heap, auth, files and Vault, jobs, and platform SDK integrations for agents, messaging, mailings, automations, payments, analytics, Yandex.Direct and VK Ads, media, CRM, and Google services. Excludes Chatium platform backend development."
+description: "Create and edit Chatium account and plugin code: Vue and file-based routes, domain homepages via .chatiumrc, Heap, auth, files and Vault, jobs, and platform SDK integrations for agents, messaging, mailings, automations, payments, analytics, Yandex.Direct and VK Ads, media, CRM, and Google services. Excludes Chatium platform backend development."
 ---
 
 # Chatium development
@@ -33,7 +33,7 @@ For a business event that needs staff action—such as a submitted lead or faile
 | --- | --- |
 | Show or open a page, letter, letter folder, knowledge article, or automation; present the result of an edit | [preview.md](preview.md) |
 | Create a workspace, build/change Vue UI, or display a QR code | [coding.md](coding.md) |
-| Define an endpoint, navigate, call an API, or connect an editor | [routing.md](routing.md) |
+| Define an endpoint, navigate, call an API, assign a domain homepage via `.chatiumrc`, or connect an editor | [routing.md](routing.md) |
 | Define/change a table, write records, handle Money or links | [heap.md](heap.md) |
 | Filter, paginate, search, aggregate, or batch-load records | [heap-filter.md](heap-filter.md) |
 | Enforce access, authenticate, or work with profiles/users | [auth.md](auth.md) |

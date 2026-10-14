@@ -17,7 +17,7 @@ Include `.workspace.json` containing `{}` as the workspace boundary marker. Use 
 
 ## UI convention
 
-Use platform-provided Vue 3 single-file components. Put each major section and reusable element in its own component; TSX supplies the route and HTML shell. Import and render the components from TSX; Chatium handles their browser initialization. Use one file-based TSX route per page rather than a client-side router or pathname parsing. The root page presents the application's main content. Keep the requested pages consistent without adding unrelated navigation, profile, or administrative pages.
+Use platform-provided Vue 3 single-file components. Put each major section and reusable element in its own component; TSX supplies the route and HTML shell. Import and render the components from TSX; Chatium handles their browser initialization. Use one file-based TSX route per page rather than a client-side router or pathname parsing. The root page presents the application's main content. To make a workspace folder the homepage of one or more account domains, use [`.chatiumrc` `indexPath`](routing.md#domain-homepages-with-chatiumrc). Keep the requested pages consistent without adding unrelated navigation, profile, or administrative pages.
 
 For new Vue code, use `<script setup lang="ts">` with typed macros where needed: `defineProps<{ title: string }>()`, `defineEmits<{ save: [id: string] }>()`, and `defineExpose<{ focus: () => void }>({ focus })` for an existing `focus` function. Do not rewrite existing components solely to adopt this convention. Create new UI in the task's language; preserve an existing interface's localization.
 

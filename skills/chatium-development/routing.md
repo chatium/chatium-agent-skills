@@ -27,6 +27,38 @@ The schema builder also supports `number`, `boolean`, `enum`, `array`, `object`,
 
 For one-off inspection, debugging, or seed, use [`chatium exec`](exec.md) instead of adding a temporary route.
 
+## Domain homepages with `.chatiumrc`
+
+To serve a folder's entry page at a domain's `/`, edit `indexPath` in the `.chatiumrc` at the account source root. Merge it into the existing configuration, preserving other settings. The file accepts JSON5; these examples use strict JSON.
+
+For one homepage on every domain connected to the account:
+
+```json
+{
+  "indexPath": "website"
+}
+```
+
+Create `website/index.tsx` with its page handler at `/`, following the [HTML shell convention](coding.md#ui-convention). The value is an account-relative folder path, without a leading `/`; the folder resolves to its index page. A specific page path such as `website/landing` is also supported.
+
+For different homepages by domain:
+
+```json
+{
+  "indexPath": {
+    "example.com": "website",
+    "help.example.com": "support",
+    "*": "website"
+  }
+}
+```
+
+Here `example.com/` serves `website/index.tsx`, and `help.example.com/` serves `support/index.tsx`. Keys are exact hostnames, without a scheme, port, or URL path. `*` selects the homepage for any hostname without its own entry; list `www.example.com` separately when it needs a different mapping. Domains must already be connected to the account; this setting selects their homepages.
+
+The account's root index page (`index.tsx`, another supported code index, or `index.html`) takes precedence over `indexPath`. Inspect an existing root index before relying on domain mappings, and resolve any conflict within the requested scope. If no homepage is selected or the selected page cannot be resolved, Chatium continues its normal start-page fallback.
+
+`indexPath` selects the handler for `/` internally, keeping the browser at the domain root. Other pages retain their file-based paths: `website/about.tsx` is still `/website/about`. Use RouteRefs for navigation. Verify `/` on each mapped hostname and a fallback hostname, using the intended published or [preview branch](SKILL.md#publishing-and-branch-preview).
+
 ## Route references
 
 Export a route when another file uses it. Import it directly from that file, including in Vue; route objects are not page props.
