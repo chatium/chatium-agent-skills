@@ -152,7 +152,7 @@ Use recorded ClickHouse data for traffic reports, funnels, ad spend, acquisition
 | Serve `robots.txt` or `sitemap.xml` | [seo.md](seo.md) |
 | Integrate Bitrix24 | [bitrix24.md](bitrix24.md) |
 | Integrate AmoCRM | [amocrm.md](amocrm.md) |
-| Reply to Instagram comments, check follows, or send Direct messages through Meta | [meta-instagram.md](meta-instagram.md) |
+| Reply to Instagram comments, check follows, send Direct messages with buttons, or handle Instagram button presses through Meta | [meta-instagram.md](meta-instagram.md) |
 | Add Yandex OAuth to a custom sign-in page | [yandex-oauth.md](yandex-oauth.md) |
 
 ## API source of truth
