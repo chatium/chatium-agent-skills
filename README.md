@@ -8,6 +8,12 @@ stored media, background jobs, AI agents, automations, messaging, analytics, and
 platform SDK integrations. Topic references are loaded only for the requested task.
 References may be in English or Russian; agents respond in the user's language.
 
+[chatium-domains](skills/chatium-domains/SKILL.md) connects a custom domain or
+subdomain to a Chatium account: adding the domain, NS delegation
+or external A records, HTTPS readiness, and optional primary-domain selection.
+It uses the account's current settings for DNS values and preserves existing mail
+and other services when changing DNS.
+
 Skills live in `skills/chatium-<name>/SKILL.md`. Each skill has YAML frontmatter
 with a matching `name` and a `description`. Supporting documents and executable
 helpers live beside `SKILL.md` in a flat skill directory. Topic prefixes such as

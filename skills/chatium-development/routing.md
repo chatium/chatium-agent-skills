@@ -53,7 +53,7 @@ For different homepages by domain:
 }
 ```
 
-Here `example.com/` serves `website/index.tsx`, and `help.example.com/` serves `support/index.tsx`. Keys are exact hostnames, without a scheme, port, or URL path. `*` selects the homepage for any hostname without its own entry; list `www.example.com` separately when it needs a different mapping. Domains must already be connected to the account; this setting selects their homepages.
+Here `example.com/` serves `website/index.tsx`, and `help.example.com/` serves `support/index.tsx`. Keys are exact hostnames, without a scheme, port, or URL path. `*` selects the homepage for any hostname without its own entry; list `www.example.com` separately when it needs a different mapping. Domains must already be connected to the account; this setting selects their homepages. For domain connection and DNS, use [chatium-domains](../chatium-domains/SKILL.md).
 
 The account's root index page (`index.tsx`, another supported code index, or `index.html`) takes precedence over `indexPath`. Inspect an existing root index before relying on domain mappings, and resolve any conflict within the requested scope. If no homepage is selected or the selected page cannot be resolved, Chatium continues its normal start-page fallback.
 
