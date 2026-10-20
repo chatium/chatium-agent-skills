@@ -103,6 +103,7 @@ Sender manages customer communications over connected Telegram/VK/email/SMS and 
 | Pass start context or UTM data, or link CRM contacts to a messenger using deep links | [Buckets and linking](sender-linking.md) |
 | Find a profile by Telegram username | [Username lookup](sender-telegram-username.md) |
 | Report on message sends, delivery, reads, clicks, blocks, errors or latency | [Sender analytics](sender-analytics.md) |
+| Test incoming/outgoing messages, callbacks, attachments and delivery failures without a real messenger or mailbox | [Internal test transport](sender-test-transport.md) |
 
 ### Mailings
 

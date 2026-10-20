@@ -318,3 +318,9 @@ try {
     });
 }
 ```
+## Scripted tests
+
+For isolated incoming/outgoing messages without external recipients, use the built-in
+[Internal test transport](sender-test-transport.md). It stores native Sender history
+and exposes callbacks and a journal through the SDK; simulated delivery is separate
+from real inbox receipt.
