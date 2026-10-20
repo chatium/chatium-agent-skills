@@ -46,6 +46,20 @@ The example works in account code as well as application/plugin server code. Use
 
 `id`, `title`, and `text` are required; `typeKey` and `url` are optional. Without a `typeKey`, Store uses `general`. A URL may be relative or HTTP(S); prefer an in-app route whose handler checks access. Keep the primary workflow's error semantics explicit: a Store dispatch error should not silently duplicate a saved form on retry. Log a non-critical notification failure, or surface it when delivery is an explicit product requirement.
 
+### Recipient language
+
+Store uses each recipient's profile language, falling back to Russian on the main cluster and English on US. System e-mail/Telegram labels are translated independently of the producer's language. For multilingual event content, optionally supply up to 10 `translations` variants:
+
+```ts
+// Alongside the required fallback title/text in sendNotification input:
+translations: {
+  ru: { title: 'Новая заявка', text: 'Заявка готова к обработке' },
+  en: { title: 'New request', text: 'A request is ready for review' }
+}
+```
+
+Each variant has the same title/text limits as the fallback (160/4000 characters). Selection is exact language code, then base language (`ru-RU` → `ru`), then the required fallback strings. Language keys accept `-` or `_`, are case-insensitive, and duplicate normalized keys are rejected. The selected content is used for all enabled channels for that recipient and is saved in their history; changing the profile language does not translate existing history. Store never auto-translates arbitrary text. A producer's `ctx.t` call before dispatch only renders in that caller's language, not in all recipients' languages.
+
 ## Register notification settings
 
 For an application/plugin, register the public `@store/get-notification-types` hook so that it appears in the settings UI and settings SDK. Only applications returning a valid hook response are configurable. An application without this hook can send notifications using defaults, but does not appear in settings. Account/workspace code can call `sendNotification` directly; it does not need to invent an application or register an app hook just to send.
