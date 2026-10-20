@@ -6,7 +6,7 @@ Use this flow when a submitted form represents a customer action that the applic
 2. Call `captureCustomerEvent` from `@crm/sdk` with the contacts actually supplied, or `appendUserContacts` for an authenticated user's confirmed contacts.
 3. Put display name and UTM attribution in `customer`, the saved Heap row in `linkRecords`, business payload in `payload`, and analytics fields in `metricEventData`. `metricEventData` does not accept generated event fields such as `url`.
 4. Use a stable action name such as `registrationCreated` or `bookingCreated`. The full event contract and registration rules are in [События](automations-events.md#запись-события-клиента-capturecustomerevent).
-5. When staff must act on a new submission, identify the responsible Staff+ role and provide a protected queue or an agreed notification channel after saving the record. [Store Inbox](store-notifications.md) is one option, not a required dependency. A customer confirmation is a separate message to the customer; a staff notification never substitutes for it.
+5. When the workflow calls for notifying staff about a new submission, identify the responsible Staff+ user or role and use `sendNotification` from `@store/sdk` after saving the record; read [Notifications](notifications.md). This also applies to forms implemented directly in account code. Do not build a Feed/Inbox notification mechanism yourself or substitute a work queue for a requested alert. A customer confirmation is a separate message to the customer; a staff notification never substitutes for it.
 
 ```ts
 import { captureCustomerEvent } from '@crm/sdk'

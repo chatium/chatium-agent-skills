@@ -1,6 +1,6 @@
 ---
 name: chatium-development
-description: "Create and edit Chatium account and plugin code: Vue and file-based routes, domain homepages via .chatiumrc, Heap, auth, files and Vault, jobs, and platform SDK integrations for agents, messaging, mailings, automations, payments, analytics, Yandex.Direct and VK Ads, media, CRM, and Google services. Excludes Chatium platform backend development."
+description: "Create and edit Chatium account and plugin code: Vue and file-based routes, domain homepages via .chatiumrc, Heap, auth, files and Vault, jobs, notifications for staff and administrators, and platform SDK integrations for agents, customer messaging, mailings, automations, payments, analytics, Yandex.Direct and VK Ads, media, CRM, and Google services. Excludes Chatium platform backend development."
 ---
 
 # Chatium development
@@ -15,6 +15,12 @@ Use `processes` only for a confirmed change to an existing process or a genuinel
 
 Before working in a workspace or isolated module, read its `.CHATIUM-LLM.md` if present. When changing architecture, key functionality, or substantial project decisions, create or update that file, integrating information into its existing sections. Do not create a document per component or require documentation changes for a question-only response.
 
+## Notifications for staff and administrators
+
+When asked to add notifications, alerts, or Inbox messages for account administrators, employees, or other Staff+ users, read [Notifications](notifications.md) and use `sendNotification` from `@store/sdk`. This is the shared notification mechanism for **any account code, workspace, application, or plugin**, including form handlers, payment callbacks, automation actions, and background jobs. The user does not need to mention Store or choose it as a channel: Store supplies the API; it is not a restriction on where notifications can originate.
+
+Do not build a custom notification system with `@app/inbox`, `@app/feed`, Heap delivery records, direct e-mail, or Sender for this task. Select the public SDK first, then check its current typings; use lower-level APIs only when the task is specifically to implement a chat/Inbox client or modify the notification subsystem itself. A work queue may complement requested notifications, not replace them. Customer messages, confirmations, and broadcasts are a separate use case: this staff API must never target ordinary users or clients; use the relevant Sender/Mailings references instead.
+
 ## Runtime and module boundaries
 
 - Backend TypeScript runs in sandboxed V8 with platform modules and packages, without Node.js builtins, filesystem, or shell access. These limits concern application code, not local development tools.
@@ -27,7 +33,7 @@ Before working in a workspace or isolated module, read its `.CHATIUM-LLM.md` if 
 ## Read for the task
 
 Load only references covering the change; a link does not require reading unrelated examples. Resolve linked filenames from the directory containing this `SKILL.md`.
-For a business event that needs staff action—such as a submitted lead or failed payment—identify the responsible Staff+ role and a dependable way to see and handle the work. A protected work queue or an agreed notification channel may serve this purpose. Use [Store notifications](store-notifications.md) when Store Inbox/e-mail is the chosen channel; do not add it automatically to every process. Store notifications are never a customer messaging channel. If responsibility or the channel is unclear, resolve that before claiming the work is covered.
+For a business event that needs staff action—such as a submitted lead or failed payment—identify the responsible Staff+ user or role. If the task calls for notifying them, follow [Notifications](notifications.md); do not substitute a queue or invent another delivery mechanism. Do not add notifications to every page view or routine operation without a meaningful staff-facing reason.
 
 | Task | Reference |
 | --- | --- |
@@ -43,7 +49,7 @@ For a business event that needs staff action—such as a submitted lead or faile
 | Inspect deployed data, debug server code, or seed data | [exec.md](exec.md) |
 | Read platform logs for an account with an available Source Git checkout | [Account logs](account-logs.md) |
 | Inspect Store plugin permissions or install a plugin through `chatium exec` | [Store plugin installation](store-plugin-install.md) |
-| Notify account staff about a meaningful event, or read/change the current staff user's Inbox/e-mail preferences at their request | [Store notifications](store-notifications.md) |
+| Add notifications/alerts for administrators or employees from any account/application code, or read/change the current staff user's delivery preferences at their request | [Notifications](notifications.md) |
 
 ## Specialized references
 
@@ -87,7 +93,7 @@ Automations runs deterministic sequences after events: conditions check state, a
 
 ### Sender
 
-Sender manages customer communications over connected Telegram/VK/email/SMS and other channels. Use its server-side `@sender/sdk` for notifications, broadcasts, deterministic bots, incoming updates and recipient management.
+Sender manages customer communications over connected Telegram/VK/email/SMS and other channels. Use its server-side `@sender/sdk` for customer messages and broadcasts, deterministic bots, incoming updates and recipient management. For notifications to account administrators or employees, use [Notifications](notifications.md), not Sender.
 
 | Task | Reference |
 | --- | --- |

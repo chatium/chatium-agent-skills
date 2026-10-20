@@ -1,6 +1,14 @@
-# Store notifications for account staff
+# Notifications for administrators and staff
 
-Use this API when the project has chosen Store notifications (Inbox and/or e-mail) for an event that account staff must handle. A protected work queue or another agreed channel can be used instead. **Store notifications are only for account staff and administrators (Staff+), never ordinary users or customers.** A landing page view, button click, or routine technical operation is not by itself a reason to notify. Store complements the business/CRM event; it does not replace saving the record or capturing the event. Establish the responsible staff member or role before sending.
+Use this mechanism whenever the requested feature must notify account administrators, employees, or other Staff+ users. It applies to **any server-side account code, workspace, application, or plugin**: a landing-page form, a new request or booking, a failed payment, a finished generation, an automation action, or a background job. The user need not say “Store notifications”: the public `@store/sdk` is the standard entry point for staff notifications throughout Chatium, not an API limited to code inside Store.
+
+**Only account staff and administrators (Staff+), never ordinary users or customers.** A customer confirmation or broadcast is separate and uses the relevant Sender/Mailings API. A landing page view, button click, or routine technical operation is not by itself a reason to notify. Notifications complement saving the business record and capturing its CRM event; they do not replace either. Establish the responsible staff user or role before sending.
+
+## Choose the notification API first
+
+- Use `sendNotification` from `@store/sdk`. Store handles the source, history, Inbox projection, enabled delivery channels, and personal preferences. A work queue can coexist with notifications; it is not a replacement when the user requested an alert.
+- Do not create or update Feed/Inbox items directly with `@app/feed` or `@app/inbox`, create notification/delivery tables, or send staff alerts directly through e-mail/Sender to recreate this feature. Those lower-level APIs are for tasks that actually implement a chat/Inbox client or the notification subsystem itself.
+- If `@store/sdk` or a method is missing from local typings, refresh the project's dependencies/typings or report the missing integration. Do not fall back to a homemade notification system.
 
 ## Producer API
 
@@ -26,9 +34,11 @@ const result = await sendNotification(ctx, {
   typeKey: 'request.created',
   title: ctx.t('New request'),
   text: ctx.t('A new request is ready for review'),
-  url: `/app/my-app/requests/${request.id}`
+  url: `/admin/requests/${request.id}`
 })
 ```
+
+The example works in account code as well as application/plugin server code. Use the real detail route: an account might use `/admin/requests/...`, while an application might use `/app/my-app/requests/...`. Store determines the source from the authenticated caller; do not forge an app identity for account code.
 
 `recipients` accepts either `{ userIds: string[] }` or `{ accountRoles: ('Staff' | 'Admin' | 'Developer' | 'Owner')[] }`, not both in one call. Select only intended Staff+ recipients; Store also excludes Clients, bots, unknown users, and users without a Staff+ account role even when addressed by ID. This filtering is a safeguard, not permission to pass customer IDs. Prefer a known responsible staff user for a personal task; use roles only when everyone in that role should receive it. Role matching is exact: `['Staff']` does not also mean Admin/Developer/Owner. Explicit input accepts at most 500 IDs; after role expansion and Staff+ filtering, before channel preferences, at most 100 recipients may remain. Above 100 the whole call fails with `STORE_NOTIFICATION_RECIPIENT_LIMIT_EXCEEDED`, not a partial send. The protective source limit is 30 calls and 1000 deliveries per minute (`STORE_NOTIFICATION_RATE_LIMIT_EXCEEDED`); Inbox and e-mail each count as a delivery. These codes are in the error message, not a promised `error.code` property. Do not split a large audience into batches just to evade these limits; raise a bulk-delivery requirement separately.
 
@@ -36,7 +46,7 @@ const result = await sendNotification(ctx, {
 
 ## Register notification settings
 
-Register the public `@store/get-notification-types` hook in your application so that it appears in the settings UI and settings SDK. Only applications returning a valid hook response are configurable. An application without this hook can send notifications using defaults, but does not appear in settings.
+For an application/plugin, register the public `@store/get-notification-types` hook so that it appears in the settings UI and settings SDK. Only applications returning a valid hook response are configurable. An application without this hook can send notifications using defaults, but does not appear in settings. Account/workspace code can call `sendNotification` directly; it does not need to invent an application or register an app hook just to send.
 
 No categories are required. For just the common Inbox/e-mail controls, return an empty group list:
 
@@ -97,6 +107,6 @@ await updateNotificationSettings(ctx, {
 
 After a settings change, inspect the returned result or read settings again and tell the user exactly what changed. Do not claim actual mail delivery merely because e-mail was enabled.
 
-Before claiming an elected Store integration works, refresh stale `@store/sdk` typings/dependencies if the method is missing and typecheck your integration. With permission, send one event to an agreed test staff recipient and check their Inbox and/or mailbox: `queued` alone does not prove receipt. Notifications are available to Staff+ in every account with Store. When Store is outside the task scope, do not make this check a condition for accepting unrelated process behavior.
+Before claiming the notification integration works, typecheck it with the current `@store/sdk` typings. With permission, send one event to an agreed test staff recipient and check their Inbox and/or mailbox: `queued` alone does not prove receipt. Notifications are available to Staff+ in every account with Store. Do not send a real test message without authorization or make this check a condition for accepting unrelated process behavior.
 
 Public reference: [Store SDK and staff notifications](https://dev.chatium.ru/app/knowledge/~/framework-chatium/store-sdk/vozmozhnosti-store-sdk.md), [notification settings and the types hook](https://dev.chatium.ru/app/knowledge/~/framework-chatium/store-sdk/nastrojka-uvedomleniy.md). These pages document the three methods and link to their detailed contracts.
