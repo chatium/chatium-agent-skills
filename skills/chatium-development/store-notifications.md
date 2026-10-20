@@ -14,7 +14,7 @@ Inbox and e-mail are enabled by default unless the recipient has changed their p
 
 ## Send a new event
 
-Call on the server after the business record has been saved. Use a stable, event-specific `id`: the same `id` updates the Inbox history message rather than adding a duplicate; distinct submissions need distinct IDs. A new SDK call with the same ID can still send another e-mail: sent letters cannot be updated, and exactly-once e-mail delivery is not guaranteed. After an ambiguous failure, inspect delivery logs before retrying. Point `url` to an authorized detail page if one exists. Do not put secrets or unnecessary customer data into the title/text or URL.
+Call on the server after the business record has been saved. Use a stable, event-specific `id`: the same `id` updates the Inbox history message rather than adding a duplicate; distinct submissions need distinct IDs. A new SDK call with the same ID can still send another e-mail: sent letters cannot be updated, and exactly-once e-mail delivery is not guaranteed. After an ambiguous failure, do not retry blindly: the first call may have succeeded. Reconcile with the recipient before sending another letter. Point `url` to an authorized detail page if one exists. Do not put secrets or unnecessary customer data into the title/text or URL.
 
 ```ts
 import { sendNotification } from '@store/sdk'
@@ -36,7 +36,7 @@ const result = await sendNotification(ctx, {
 
 ## Register notification settings
 
-Register `@store/get-notification-types` in the producer application so that it appears in the settings UI and settings SDK. Only applications returning a valid hook response are configurable. The hook is called for settings operations, not on every notification send. An application without this hook can send notifications using defaults, but does not appear in settings.
+Register the public `@store/get-notification-types` hook in your application so that it appears in the settings UI and settings SDK. Only applications returning a valid hook response are configurable. An application without this hook can send notifications using defaults, but does not appear in settings.
 
 No categories are required. For just the common Inbox/e-mail controls, return an empty group list:
 
@@ -97,6 +97,6 @@ await updateNotificationSettings(ctx, {
 
 After a settings change, inspect the returned result or read settings again and tell the user exactly what changed. Do not claim actual mail delivery merely because e-mail was enabled.
 
-Before claiming an elected Store integration works, refresh stale `@store/sdk` typings/dependencies if the method is missing, typecheck the producer, and send one event on a test account. Check the Store Inbox and account/job logs: `queued` alone does not prove that a staff member saw the item. Verify the Inbox UI is enabled for the target account. When Store is outside the task scope, do not make this check a condition for accepting unrelated process behavior.
+Before claiming an elected Store integration works, refresh stale `@store/sdk` typings/dependencies if the method is missing and typecheck your integration. With permission, send one event to an agreed test staff recipient and check their Inbox and/or mailbox: `queued` alone does not prove receipt. Notifications are available to Staff+ in every account with Store. When Store is outside the task scope, do not make this check a condition for accepting unrelated process behavior.
 
 Public reference: [Store SDK and staff notifications](https://dev.chatium.ru/app/knowledge/~/framework-chatium/store-sdk/vozmozhnosti-store-sdk.md), [notification settings and the types hook](https://dev.chatium.ru/app/knowledge/~/framework-chatium/store-sdk/nastrojka-uvedomleniy.md). These pages document the three methods and link to their detailed contracts.
