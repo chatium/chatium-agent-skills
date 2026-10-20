@@ -18,9 +18,9 @@ Chat and Sender already maintain their own notifications. Do not duplicate their
 
 The method returns `{ dispatchId, state: 'queued' | 'skipped', eligibleCount, inboxCount, emailCount, telegramCount, filteredCount, unknownCount }`. `eligibleCount` counts unique recipients with an enabled available channel; the three channel counters count planned deliveries. `queued` means scheduled, not delivered; `skipped` means no eligible recipients remained. It does not promise a native/mobile push.
 
-Inbox and e-mail are enabled by default unless the recipient has changed their preferences. E-mail requires a confirmed staff e-mail address; without one, Inbox still works independently. The sender is `notifications@chatium.ai` on the US cluster and `notifications@chatium.ru` elsewhere. Enqueuing a letter does not prove receipt in the mailbox.
+All four channel preferences (`inbox`, `email`, `telegram`, `app`) are enabled by default unless the recipient has changed them. Native app delivery is not implemented yet and its control is hidden; `app` currently stores only a preference. E-mail requires a confirmed staff e-mail address; without one, Inbox still works independently. The sender is `notifications@chatium.ai` on the US cluster and `notifications@chatium.ru` elsewhere. Enqueuing a letter does not prove receipt in the mailbox.
 
-Telegram is a third, independent opt-in channel, off by default. The staff user connects `@chatium_notifications_bot` from **All notifications → Notification settings**, presses Start, returns to Store and confirms the displayed Telegram profile. Only then does the UI unlock Telegram choices; connecting alone does not enable event categories. Store handles this channel too: do not implement a separate bot/webhook or use Sender for these staff alerts. The public settings result includes `telegram` availability, connection status and the current/pending profile; no bot credentials. `channels.telegram` and per-type `telegram` overrides are booleans; an omitted Telegram source setting means false. A saved opt-in cannot deliver without a confirmed active connection. Switching these preferences does not connect/rebind a Telegram profile; that is the user's settings UI flow.
+Telegram is an independent channel, enabled by default but unavailable until connected. The staff user connects `@chatium_notifications_bot` from **All notifications → Notification settings**, presses Start, returns to Store and confirms the displayed Telegram profile. Confirmation makes delivery available for already enabled categories; explicit opt-outs remain unchanged. Store handles this channel too: do not implement a separate bot/webhook or use Sender for these staff alerts. The public settings result includes `telegram` availability, connection status and the current/pending profile; no bot credentials. `channels.telegram` and per-type `telegram` overrides are booleans; an omitted Telegram source setting means true. An enabled preference cannot deliver without a confirmed active connection. Switching these preferences does not connect/rebind a Telegram profile; that is the user's settings UI flow.
 
 ## Send a new event
 
@@ -59,7 +59,7 @@ app.pluginHook('@store/get-notification-types', () => ({
 }))
 ```
 
-Return the object, not `null`, `undefined`, or `{}`. With no `typeKey` on a send, the notification uses `general` and follows the application's channel settings. To expose per-type controls, declare groups whose item keys match the sent `typeKey`. In v1 `defaultEnabled: false` is unsupported; omit it or use `true`. Future/unknown types inherit the recipient's source settings, initially both channels on.
+Return the object, not `null`, `undefined`, or `{}`. With no `typeKey` on a send, the notification uses `general` and follows the application's channel settings. To expose per-type controls, declare groups whose item keys match the sent `typeKey`. In v1 `defaultEnabled: false` is unsupported; omit it or use `true`. Future/unknown types inherit the recipient's source settings, initially all four channels on.
 
 ```ts
 app.pluginHook('@store/get-notification-types', ctx => ({
@@ -101,10 +101,10 @@ await updateNotificationSettings(ctx, {
 })
 ```
 
-- `getNotificationSettings(ctx)` returns `{ sources, workspaces, schemasUnavailable, telegram }`. Each source includes `sourceKey`, title, `channels: { inbox, email, telegram? }`, and per-type `typeOverrides`; applications also have `schema`. If discovery failed, do not assume the missing application's settings were reset.
-- `updateNotificationSettings(ctx, { sourceKey, channels, typeKeys? })` applies immediately and returns the resulting `{ sourceKey, channels, typeOverrides }`, the same settings used by the UI. `channels` must contain at least one boolean `inbox`/`email`/`telegram`; omitted channels and unrelated sources remain unchanged.
+- `getNotificationSettings(ctx)` returns `{ sources, workspaces, schemasUnavailable, telegram }`. Each source includes `sourceKey`, title, `channels: { inbox, email, telegram, app }`, and per-type `typeOverrides`; applications also have `schema`. If discovery failed, do not assume the missing application's settings were reset.
+- `updateNotificationSettings(ctx, { sourceKey, channels, typeKeys? })` applies immediately and returns the resulting `{ sourceKey, channels, typeOverrides }`, the same settings used by the UI. `channels` must contain at least one boolean `inbox`/`email`/`telegram`/`app`; omitted channels and unrelated sources remain unchanged. `app` does not activate native push delivery yet.
 - Without `typeKeys`, the change applies to the entire source and clears its per-type exceptions **only for the selected channels**, just like the UI's whole-application toggle. With `typeKeys`, it changes only those types, preserving the source defaults and other types. A supplied list must contain 1–100 known type keys; an empty list is an error, not "all". `general` is also supported.
-- To reset one type to inheritance, set its selected channel to the source's value. To reset the whole source to defaults, omit `typeKeys` and set `{ inbox: true, email: true, telegram: false }`.
+- To reset one type to inheritance, set its selected channel to the source's value. To reset the whole source to defaults, omit `typeKeys` and set `{ inbox: true, email: true, telegram: true, app: true }`.
 - Unknown/unavailable sources and unknown types are rejected without changing settings. The SDK does not accept recipient lists or edit another person's preferences. It does not send a test notification or confirm an e-mail address. These settings do not control announcements or native Chat/Sender messages.
 
 After a settings change, inspect the returned result or read settings again and tell the user exactly what changed. Do not claim actual mail delivery merely because e-mail was enabled.
