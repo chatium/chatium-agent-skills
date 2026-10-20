@@ -27,7 +27,7 @@ Before working in a workspace or isolated module, read its `.CHATIUM-LLM.md` if 
 ## Read for the task
 
 Load only references covering the change; a link does not require reading unrelated examples. Resolve linked filenames from the directory containing this `SKILL.md`.
-For a business event that needs staff action—such as a submitted lead or failed payment—identify the responsible Staff+ role and a dependable way to see and handle the work. A protected work queue or an agreed notification channel may serve this purpose. Use [Store notifications](store-notifications.md) when Store Inbox is the chosen channel; do not add it automatically to every process. Store notifications are never a customer messaging channel. If responsibility or the channel is unclear, resolve that before claiming the work is covered.
+For a business event that needs staff action—such as a submitted lead or failed payment—identify the responsible Staff+ role and a dependable way to see and handle the work. A protected work queue or an agreed notification channel may serve this purpose. Use [Store notifications](store-notifications.md) when Store Inbox/e-mail is the chosen channel; do not add it automatically to every process. Store notifications are never a customer messaging channel. If responsibility or the channel is unclear, resolve that before claiming the work is covered.
 
 | Task | Reference |
 | --- | --- |
@@ -43,7 +43,7 @@ For a business event that needs staff action—such as a submitted lead or faile
 | Inspect deployed data, debug server code, or seed data | [exec.md](exec.md) |
 | Read platform logs for an account with an available Source Git checkout | [Account logs](account-logs.md) |
 | Inspect Store plugin permissions or install a plugin through `chatium exec` | [Store plugin installation](store-plugin-install.md) |
-| Notify account staff about a meaningful application event (a new lead, completed job, failed payment, etc.) | [Store notifications](store-notifications.md) |
+| Notify account staff about a meaningful event, or read/change the current staff user's Inbox/e-mail preferences at their request | [Store notifications](store-notifications.md) |
 
 ## Specialized references
 
