@@ -151,8 +151,6 @@ The build generates Tailwind CSS v3: any `.css` file with a top-level `@tailwind
 - An unknown `@apply` class, a missing or invalid config, or a local `@import` fails that file's build, leaving its pages without Tailwind styles; fix the error before reporting the page ready.
 - Do not load the Tailwind browser script (`tailwind.3.4.16.min.js`, `cdn.tailwindcss.com`) on pages that link an entry.
 
-An existing workspace that loads that script keeps it; move it to an entry only on request: its `tailwind.config` goes into the JSON config, its `<style type="text/tailwindcss">` blocks into the entry, and then the script is removed.
-
 ## QR codes
 
 Display a QR image with `<img :src="qrUrl" alt="QR code">`, computing its URL from the current text:
