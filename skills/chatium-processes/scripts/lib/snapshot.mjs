@@ -1,0 +1,139 @@
+// Snapshot producer. All paths are account-relative; publication is a separate step.
+import { templatePath } from './letters.mjs'
+import { spawnSync } from 'node:child_process'
+import { readFileSync, existsSync, realpathSync } from 'node:fs'
+import { join, resolve, sep } from 'node:path'
+import { isDir, isFile, walk, rel } from './project.mjs'
+import { parseYaml } from './yaml.mjs'
+import { git, gitState, assertPublishedState, SnapshotDrift } from './git-state.mjs'
+import { collectBuildEvidence } from './build-evidence.mjs'
+import { resolveBuildState } from './build-state.mjs'
+
+function safePath(root, value) {
+  if (typeof value !== 'string' || !value || value.startsWith('/') || value.includes('\\') || value.replace(/\/$/, '').split('/').some(p => !p || p === '.' || p === '..')) throw Error('Некорректный относительный путь источника снимка.')
+  const file = resolve(root, value)
+  if (!file.startsWith(resolve(root) + sep)) throw Error('Источник снимка выходит за пределы аккаунта.')
+  if (existsSync(file) && !realpathSync(file).startsWith(realpathSync(root) + sep)) throw Error('Ссылка источника снимка выходит за пределы аккаунта.')
+  return file
+}
+function delayText(delay) {
+  if (delay?.type === 'delay') return `${delay.amount} ${{ seconds: 'сек.', minutes: 'мин.', hours: 'ч.', days: 'дн.' }[delay.units] || delay.units}`
+  if (delay?.type === 'exactTime') return `До ${delay.exactTime}`
+  if (delay?.type === 'waitForTime') {
+    const days = { monday: 'пн', tuesday: 'вт', wednesday: 'ср', thursday: 'чт', friday: 'пт', saturday: 'сб', sunday: 'вс' }
+    return `${(delay.weekdays || []).map(d => days[d] || d).join(', ')} в ${delay.weekdayTime}`
+  }
+  return 'До даты, заданной условием процесса'
+}
+// A shared automation may send several series. Keep the timing/conditions
+// leading to this destination, but do not attribute other series to the link.
+function stepsForSeries(steps, source) {
+  if (!source) return steps
+  const prefix = source.replace(/\/$/, '') + '/'
+  const belongs = step => templatePath(step)?.startsWith(prefix)
+  const contains = step => belongs(step) || (step?.thenBranch?.steps || []).some(contains) || (step?.elseBranch?.steps || []).some(contains)
+  const last = steps.findLastIndex(contains)
+  if (last < 0) return []
+  return steps.slice(0, last + 1).flatMap(step => {
+    if (step.type === 'action' && templatePath(step) && !belongs(step)) return []
+    if (step.type === 'condition' || step.type === 'draft') return [{ ...step, thenBranch: { steps: stepsForSeries(step.thenBranch?.steps || [], source) }, elseBranch: { steps: stepsForSeries(step.elseBranch?.steps || [], source) } }]
+    return [step]
+  })
+}
+function walkSteps(steps, prefix = '', out = [], source = '') {
+  for (const step of Array.isArray(steps) ? steps : []) {
+    if (out.length >= 100) throw Error('Для снимка слишком много шагов автоматизации: максимум 100.')
+    const ref = step.id && source ? { id: step.id, source } : {}
+    if (step.type === 'delay') out.push({ ...ref, kind: 'delay', title: prefix + 'Ожидание', detail: step.description || delayText(step.delay) })
+    else if (step.type === 'condition' || step.type === 'continueCondition') {
+      out.push({ ...ref, kind: 'condition', title: prefix + (step.conditionName || step.title || 'Условие'), detail: step.description || (step.type === 'continueCondition' ? 'Продолжить, только если условие выполнено' : 'Два пути: условие выполнено или нет') })
+      walkSteps(step.thenBranch?.steps, prefix + 'Если да · ', out, source)
+      walkSteps(step.elseBranch?.steps, prefix + 'Если нет · ', out, source)
+    } else if (step.type === 'action') out.push({ ...ref, kind: 'action', title: prefix + (step.actionName || step.title || 'Действие'), detail: step.description || '' })
+    else if (step.type === 'draft') {
+      out.push({ ...ref, kind: 'condition', title: prefix + 'Не настроено', detail: step.description || '' })
+      walkSteps(step.thenBranch?.steps, prefix + 'Если да · ', out, source)
+      walkSteps(step.elseBranch?.steps, prefix + 'Если нет · ', out, source)
+    }
+  }
+  return out
+}
+function boundedMessages(messages) {
+  const values = Array.isArray(messages) ? messages : []
+  return values.slice(0, 99).map(value => String(value || 'Пустое сообщение').slice(0, 2000))
+    .concat(values.length > 99 ? [`И ещё ${values.length - 99} замечаний; полный вывод — в check.`] : [])
+}
+export function buildSnapshot({ root, slug, map, checks, branch, commit, checkedAt = new Date().toISOString(), allowInvalidMap = false, buildEvidence }) {
+  if (!map || !Array.isArray(map.stages) || !Array.isArray(map.nodes) ||
+      (!allowInvalidMap && checks.some(c => c.id === 'map' && !c.ok))) throw Error('Нельзя публиковать снимок с некорректной картой процесса.')
+  if (checks.length > 100) throw Error('Снимок поддерживает не более 100 проверок. Сгруппируйте проверки до публикации.')
+  const rawNeeds = map.needsInput ?? []
+  if (!Array.isArray(rawNeeds) || rawNeeds.length > 100) throw Error('needsInput: нужен список не более 100 вопросов.')
+  const needsInput = rawNeeds.map(item => typeof item === 'string' ? { title: item } : { title: item.title, ...(item.nodeId ? { nodeId: item.nodeId } : {}), ...(item.blocks ? { blocks: item.blocks } : {}) })
+  for (const node of map.nodes) safePath(root, node.source)
+  const evidence = buildEvidence || collectBuildEvidence({ root, slug, map, checks })
+  const build = { ...evidence.assessment, checkedCommit: commit, checkedAt }
+  const nodes = map.nodes.map(node => {
+    const source = safePath(root, node.source)
+    const agentPath = node.source.endsWith('.agent.json') ? node.source : undefined
+    if (node.agentId !== undefined && (!agentPath || typeof node.agentId !== 'string' || !node.agentId.trim() || node.agentId.length > 200 || /[\u0000-\u001f]/.test(node.agentId))) throw Error('agentId допустим только для исходника .agent.json и должен быть непустой строкой до 200 символов.')
+    const facts = evidence.nodes.get(node.id)
+    const state = resolveBuildState(facts, build.gates)
+    const letters = node.kind === 'series' && isDir(source) ? walk(source).filter(p => p.endsWith('.message.yaml')).sort().map(file => {
+      safePath(root, rel(root, file))
+      try { const l = parseYaml(readFileSync(file, 'utf8')); return { title: l.title || 'Письмо', subject: l.subject || '', source: rel(root, file) } }
+      catch { return { title: 'Письмо не разбирается', subject: '', source: rel(root, file) } }
+    }) : undefined
+    return { id: node.id, stage: node.stage, kind: node.kind, title: node.title, purpose: node.purpose || '', source: node.source,
+      ...state, build: facts,
+      ...(agentPath ? { agent: { path: agentPath, ...(node.agentId ? { id: node.agentId } : {}) } } : {}), ...(letters ? { letters } : {}) }
+  })
+  const links = (map.links || []).map((link, i) => {
+    const steps = []
+    const automationFiles = []
+    if (link.via) {
+      const dir = safePath(root, link.via)
+      for (const file of walk(dir).filter(f => f.endsWith('.automationConfig.json')).sort()) {
+        const path = rel(root, file)
+        safePath(root, path)
+        automationFiles.push(path)
+        try { const target = map.nodes.find(n => n.id === link.to); const all = JSON.parse(readFileSync(file, 'utf8')).steps || []; walkSteps(stepsForSeries(all, target?.kind === 'series' ? target.source : null), '', steps, path) } catch (e) { steps.push({ kind: 'action', title: 'Ошибка конфигурации', detail: e.message }) }
+      }
+    }
+    return { id: link.id || `link-${i + 1}`, from: link.from, to: link.to, when: link.when || '', ...(link.signal ? { signal: link.signal } : {}), ...(link.via ? { via: link.via, automationFiles } : {}), steps }
+  })
+  return { version: 1, processPath: slug, ...(map.knowledge ? { knowledge: map.knowledge } : {}),
+    title: map.title, branch, commit, checkedAt, stages: map.stages, nodes, links, needsInput, build,
+    checks: checks.map(item => ({ ...item, errors: boundedMessages(item.errors), warnings: boundedMessages(item.warnings) })) }
+}
+export function prepareSnapshot({ root, slug, map, checks, state = gitState(root), allowInvalidMap = false }) {
+  return buildSnapshot({ root, slug, map, checks, ...state, allowInvalidMap })
+}
+export async function startExec(root, sdkCode, expectedCommit) {
+  // Use the public CLI entrypoint, including the image's supported wrapper.
+  const r = spawnSync('chatium', ['exec'], { cwd: root, input: sdkCode, encoding: 'utf8', timeout: 45_000, maxBuffer: 4 * 1024 * 1024 })
+  if (r.error || r.status !== 0) throw Error(`Не удалось выполнить chatium exec: ${r.error?.message || r.stderr.trim()}`)
+  if (expectedCommit) {
+    const executed = r.stderr.match(/^Executed commit: ([0-9a-f]{40})$/m)?.[1]
+    if (!executed) throw Error('CLI не сообщил SHA исполненного коммита; актуальность результата не подтверждена.')
+    if (executed !== expectedCommit) {
+      // Source Git can reuse a successful build for a different commit with
+      // exactly the same file tree (for example, after reverting test edits).
+      let sameTree = false
+      try { sameTree = git(root, ['rev-parse', `${executed}^{tree}`]) === git(root, ['rev-parse', `${expectedCommit}^{tree}`]) }
+      catch { /* An unknown executed commit cannot prove equivalence. */ }
+      if (!sameTree) throw new SnapshotDrift(`CLI исполнил коммит ${executed}, ожидался ${expectedCommit}. Повторите проверку на нужной ветке.`)
+    }
+  }
+  return JSON.parse(r.stdout)
+}
+export async function publishSnapshot(root, snapshot) {
+  const payload = JSON.stringify(snapshot)
+  if (payload.length > 250_000) throw Error('Снимок превышает предел сервера: 250 000 символов JSON. Сократите карту или диагностику.')
+  assertPublishedState(root, snapshot)
+  const saved = await startExec(root,
+    `import { writeProcessSnapshot } from '@start/sdk'\nreturn await writeProcessSnapshot(ctx, ${payload})`, snapshot.commit)
+  if (!saved?.saved) throw Error(`Снимок не сохранён: ${saved?.reason || 'SDK вернул неожиданный ответ'}`)
+  if (!Number.isInteger(saved.revision) || saved.revision < 1) throw Error('SDK вернул некорректную ревизию снимка.')
+  return { saved: true, revision: saved.revision }
+}

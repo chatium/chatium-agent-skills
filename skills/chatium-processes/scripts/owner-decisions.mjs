@@ -1,0 +1,61 @@
+#!/usr/bin/env node
+import { readFileSync, writeFileSync } from 'node:fs'
+import { boardDecisionDigest, prepareOwnerDecision, recordOwnerDecision, ownerDecisionStatus } from './lib/owner-decisions.mjs'
+import { findRoot, parseArgs } from './lib/project.mjs'
+import { commissionStatus } from './lib/commission.mjs'
+import { readProcessBoard } from './lib/board.mjs'
+
+let parsed
+try { parsed = parseArgs(process.argv.slice(2), ['help', 'json'],
+  ['help', 'json', 'kind', 'board-revision', 'out', 'packet', 'response', 'root']) }
+catch (error) { console.error(error.message); process.exit(2) }
+const { positional, options } = parsed
+const [command, slug] = positional
+if (options.help || !command || !slug) {
+  console.log('owner-decisions.mjs prepare|record|status <process> --kind plan|launch [--board-revision NUMBER|none] [--out FILE] [--packet FILE --response FILE] [--root DIR] [--json]')
+  process.exit(options.help ? 0 : 2)
+}
+try {
+  const allowed = new Set(['help', 'json', 'kind', 'board-revision', 'out', 'packet', 'response', 'root'])
+  if (positional.length !== 2) throw Error('Нужны команда и процесс.')
+  for (const [key, value] of Object.entries(options)) {
+    if (!allowed.has(key)) throw Error(`Неизвестный параметр --${key}.`)
+    if (!['help', 'json'].includes(key) && (typeof value !== 'string' || !value.trim() || value.startsWith('--')))
+      throw Error(`Нужно значение --${key}.`)
+  }
+  if (!['prepare', 'record', 'status'].includes(command)) throw Error('Команда: prepare, record или status.')
+  const kind = options.kind
+  if (!['plan', 'launch'].includes(kind)) throw Error('Укажите --kind plan или launch.')
+  const root = findRoot(options.root)
+  if (command === 'prepare' && options['board-revision'] === undefined)
+    throw Error('Укажите --board-revision NUMBER или none после чтения доски.')
+  if (command === 'record' && (!options.packet || !options.response))
+    throw Error('Нужны --packet и --response с записанным решением.')
+  if (kind === 'plan' && ['prepare', 'record'].includes(command)) {
+    const design = commissionStatus({ root, slug, stage: 'design' })
+    if (design.status !== 'ready') throw Error(`Сначала нужны принятые заключения методологии и архитектуры: ${design.requirements
+      .filter(item => item.status !== 'ready').map(item => `${item.id} ${item.status}`).join(', ')}.`)
+  }
+  let result
+  if (command === 'prepare') {
+    const boardRevision = options['board-revision'] === 'none' ? null : Number(options['board-revision'])
+    let boardContentDigest = null
+    if (boardRevision !== null) {
+      const board = await readProcessBoard(root, slug)
+      if (board.boardRevision !== boardRevision) throw Error('Доска изменилась после чтения. Прочитайте её заново.')
+      boardContentDigest = boardDecisionDigest(board)
+    }
+    result = prepareOwnerDecision({ root, slug, kind, boardRevision, boardContentDigest })
+    if (options.out) writeFileSync(options.out, JSON.stringify(result, null, 2) + '\n', { flag: 'wx' })
+  } else if (command === 'record') {
+    result = recordOwnerDecision({ root, slug, kind,
+      packet: JSON.parse(readFileSync(options.packet, 'utf8')),
+      response: JSON.parse(readFileSync(options.response, 'utf8')) })
+  } else if (command === 'status') result = ownerDecisionStatus({ root, slug, kind })
+  console.log(JSON.stringify(result, null, 2))
+  process.exitCode = ['missing', 'stale', 'declined', 'invalid'].includes(result.status) ? 1 : 0
+} catch (error) {
+  if (options.json) console.log(JSON.stringify({ status: 'unavailable', error: error.message }))
+  else console.error(error.message)
+  process.exitCode = 2
+}

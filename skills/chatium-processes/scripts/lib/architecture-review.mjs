@@ -1,0 +1,187 @@
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs'
+import { dirname, join, resolve, sep } from 'node:path'
+import { collectKnowledge } from './knowledge.mjs'
+import { canonicalTarget, collectRiskDecisions, validateReview } from './knowledge-review.mjs'
+import { reviewPlan } from './review-normalization.mjs'
+import { isProcessSlug, rel, SKILL_DIR } from './project.mjs'
+import { processSourceFiles } from './process-sources.mjs'
+import { changedInspectedReferences, collectReferenceLibrary, informationalReferenceChanges, inspectedReferenceHashes, verifyReferenceSnapshot, withReferenceLibrary } from './review-library.mjs'
+import { parseYaml } from './yaml.mjs'
+
+export function architectureReviewPath(root, slug) {
+  if (!isProcessSlug(slug)) throw Error('Некорректный слаг процесса.')
+  const path = resolve(root, slug, 'reviews', 'architecture.json')
+  const base = realpathSync(root), target = canonicalTarget(path)
+  if (!target.startsWith(base + sep)) throw Error('Путь заключения выходит за пределы аккаунта.')
+  return path
+}
+
+function collectTaskContracts(root, slug, account) {
+  const directory = join(root, slug, 'tasks')
+  if (!existsSync(directory)) return []
+  if (!lstatSync(directory).isDirectory() || !realpathSync(directory).startsWith(account + sep))
+    throw Error('Каталог рабочих задач недоступен для ревью архитектуры.')
+  const names = readdirSync(directory).filter(name => /^W\d+\.json$/u.test(name)).sort()
+  if (names.length > 200) throw Error('Слишком много рабочих задач для ревью архитектуры.')
+  return names.map(name => {
+    const path = join(directory, name), file = lstatSync(path)
+    if (!file.isFile() || file.size > 64 * 1024 || !realpathSync(path).startsWith(account + sep))
+      throw Error(`Карточка ${name} недоступна для ревью архитектуры.`)
+    const task = JSON.parse(readFileSync(path, 'utf8'))
+    if (`${task?.id}.json` !== name) throw Error(`ID карточки ${name} не совпадает с именем.`)
+    const contract = {
+      id: task.id, planTask: task.planTask, title: task.title,
+      targetNode: task.targetNode, executor: task.executor, mode: task.mode,
+      stage: task.stage, objective: task.objective, scope: task.scope,
+      dependsOn: task.dependsOn, inputs: task.inputs,
+      expectedOutputs: task.expectedOutputs,
+      steps: (task.steps || []).map(({ id, action }) => ({ id, action })),
+      acceptanceCriteria: task.acceptanceCriteria,
+      questions: (task.questions || []).map(({ id, question, why, blocking, resolution }) =>
+        ({ id, question, why, blocking, ...(resolution ? { resolution } : {}) })),
+      lifecycle: task.status === 'cancelled' ? 'cancelled' : 'active',
+    }
+    return { path: `${slug}/tasks/${name}`, content: JSON.stringify(contract, null, 2) + '\n' }
+  })
+}
+
+export function makeArchitectureReviewPacket({ root, slug, skillDir = SKILL_DIR }) {
+  architectureReviewPath(root, slug)
+  const knowledge = collectKnowledge({ root, slug })
+  const account = realpathSync(root)
+  const taskFiles = collectTaskContracts(root, slug, account)
+  const workspacePath = join(root, slug, '.workspace.json')
+  let workspaceFile = null
+  if (existsSync(workspacePath)) {
+    if (!realpathSync(workspacePath).startsWith(account + sep) ||
+        !statSync(workspacePath).isFile() || statSync(workspacePath).size > 80_000)
+      throw Error('Конфигурация процесса недоступна или слишком велика для ревью.')
+    workspaceFile = { path: `${slug}/.workspace.json`, content: readFileSync(workspacePath, 'utf8') }
+  }
+  const specFiles = ['specs/events.yaml', 'specs/analytics.yaml', 'specs/site.yaml',
+    'specs/services.yaml', 'specs/data.yaml', 'agents/spec.yaml', 'agents/cases.yaml'].flatMap(name => {
+    const path = join(root, slug, name)
+    if (!existsSync(path)) return []
+    if (!realpathSync(path).startsWith(account + sep) || !statSync(path).isFile() || statSync(path).size > 80_000)
+      throw Error(`Спецификация ${name} недоступна или слишком велика для ревью.`)
+    return [{ path: `${slug}/${name}`, content: readFileSync(path, 'utf8') }]
+  })
+  // Paths, not code contents: adding a route/tool/table invalidates architecture,
+  // while an ordinary implementation edit remains the code reviewer's concern.
+  const sourcePaths = ['api', 'tools', 'tables'].flatMap(directory =>
+    processSourceFiles(root, join(root, slug, directory)))
+    .filter(path => /\.(?:[cm]?jsx?|[cm]?tsx?)$/.test(path))
+    .map(path => rel(root, path)).sort()
+  if (sourcePaths.length > 300) throw Error('Слишком много исходников для архитектурного инвентаря.')
+  const sourceInventory = { path: `${slug}/architecture-source-inventory.txt`,
+    content: `Исходники API, инструментов и таблиц (включая вспомогательные):\n${sourcePaths.map(path => `- ${path}`).join('\n')}\n` }
+  const siteFile = specFiles.find(file => file.path === `${slug}/specs/site.yaml`)
+  let siteFormNodes = []
+  if (siteFile) try {
+    const site = parseYaml(siteFile.content)
+    const map = parseYaml(readFileSync(join(root, slug, 'process.yaml'), 'utf8'))
+    const formPages = new Set((Array.isArray(site?.forms) ? site.forms : []).map(form => form?.page))
+    siteFormNodes = (Array.isArray(map?.nodes) ? map.nodes : [])
+      .filter(node => node?.kind === 'page' && /^[a-zA-Z0-9_-]+$/.test(node.id) &&
+        formPages.has(node.id) && node.creativeRef === `${slug}/creative/${node.id}/spec.yaml`)
+  } catch { /* Invalid YAML remains visible in the packet and is reported by check. */ }
+  const siteCreativeFiles = siteFormNodes.flatMap(node => {
+    const path = join(root, slug, 'creative', node.id, 'spec.yaml')
+    if (!existsSync(path)) return []
+    if (!realpathSync(path).startsWith(account + sep) || !statSync(path).isFile() || statSync(path).size > 80_000)
+      throw Error(`Спецификация страницы ${node.id} недоступна или слишком велика для ревью.`)
+    return [{ path: `${slug}/creative/${node.id}/spec.yaml`, content: readFileSync(path, 'utf8') }]
+  })
+  const rubric = JSON.parse(readFileSync(join(skillDir, 'build/architecture-review-questions.json'), 'utf8'))
+  if (rubric.version !== 13 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
+      new Set(rubric.questions.map(question => question.id)).size !== rubric.questions.length ||
+      rubric.questions.some(question => typeof question.id !== 'string' || !question.id ||
+        typeof question.question !== 'string' || !question.question))
+    throw Error('Некорректная рубрика архитектуры.')
+  const riskDecisions = collectRiskDecisions(root, slug)
+  const architecturePaths = [`${slug}/PLAN.md`, `${slug}/process.yaml`,
+    ...(workspaceFile ? [workspaceFile.path] : []),
+    ...specFiles.map(file => file.path), sourceInventory.path, ...siteCreativeFiles.map(file => file.path),
+    ...taskFiles.map(file => file.path)]
+  const dataEvidence = [sourceInventory.path, ...(workspaceFile ? [workspaceFile.path] : []),
+    ...[`${slug}/specs/data.yaml`, `${slug}/specs/events.yaml`, `${slug}/specs/analytics.yaml`]
+      .filter(path => specFiles.some(file => file.path === path))]
+  const questions = [...rubric.questions.map(question => {
+    if (question.id === 'links' && specFiles.some(file => file.path === `${slug}/specs/events.yaml`))
+      return { ...question, allowNotApplicable: false, requiredEvidenceGroups: [
+        { paths: [`${slug}/process.yaml`] }, { paths: [`${slug}/specs/events.yaml`] },
+      ] }
+    if (question.id === 'site-and-services' && (siteCreativeFiles.length || sourcePaths.length)) return { ...question,
+      allowNotApplicable: false, requiredEvidenceGroups: [
+        { paths: [sourceInventory.path] },
+        ...(siteFile ? [{ paths: [siteFile.path] }] : []),
+        ...siteCreativeFiles.map(file => ({ paths: [file.path] })),
+      ] }
+    if (question.id === 'consistency' && taskFiles.length) return { ...question,
+      allowNotApplicable: false, requiredEvidenceGroups: [
+        { paths: [`${slug}/PLAN.md`] }, { paths: taskFiles.map(file => file.path) },
+      ] }
+    if (question.id === 'data' && dataEvidence.length) return { ...question,
+      allowNotApplicable: false, requiredEvidenceGroups: [
+        { paths: [`${slug}/PLAN.md`] }, ...dataEvidence.map(path => ({ paths: [path] })),
+      ] }
+    if (question.id === 'event-lifecycle' && specFiles.some(file => file.path === `${slug}/specs/events.yaml`))
+      return { ...question, allowNotApplicable: false, requiredEvidenceGroups: [
+        { paths: [`${slug}/PLAN.md`] }, { paths: [`${slug}/specs/events.yaml`] },
+      ] }
+    return question
+  }), ...riskDecisions.map(item => ({
+    id: `risk.${item.id}`,
+    question: `Учтены ли последствия отдельного решения ${item.id} вопреки существенной рекомендации в архитектуре и плане проверки?`,
+    lookFor: 'Проверь ответ владельца, область действия, альтернативу, последствия и контроль. Убедись, что выбор не скрывает техническую невозможность, опасный доступ или отсутствие критической ветви.',
+    evidencePaths: [item.path, ...architecturePaths],
+    requiredEvidenceGroups: [{ paths: [item.path] },
+      { paths: architecturePaths, marker: item.id }], allowNotApplicable: false,
+  }))]
+  const base = { version: 1, process: slug, stage: 'architecture', rubricVersion: rubric.version,
+    questions, reviewerInstructions: readFileSync(join(skillDir, 'build/architecture-reviewer.md'), 'utf8'),
+    files: [...knowledge.files.map(file => file.path === `${slug}/PLAN.md`
+      ? { ...file, content: reviewPlan(file.content) } : file),
+    ...(workspaceFile ? [workspaceFile] : []), ...specFiles, sourceInventory, ...siteCreativeFiles, ...taskFiles,
+    ...riskDecisions.map(({ path, content }) => ({ path, content }))]
+      .sort((a, b) => a.path.localeCompare(b.path)), staticChecks: knowledge.checks }
+  return withReferenceLibrary(base, collectReferenceLibrary({ root, slug, stage: 'architecture', skillDir }))
+}
+
+export function recordArchitectureReview({ root, slug, packet, report, agentReference, packetDirectory, skillDir = SKILL_DIR }) {
+  if (typeof agentReference !== 'string' || !agentReference.trim() || agentReference.length > 500)
+    throw Error('Нужен идентификатор реального вызова reviewer.')
+  const current = makeArchitectureReviewPacket({ root, slug, skillDir })
+  if (packet.inputDigest !== current.inputDigest) throw Error('План, карта, знания или рубрика изменились. Подготовьте новое заключение.')
+  if (packetDirectory) verifyReferenceSnapshot(packetDirectory, packet.referenceLibrary)
+  const referenceHashes = inspectedReferenceHashes(packet.referenceLibrary, report.inspectedReferences)
+  const changed = changedInspectedReferences({ referenceHashes, ruleDigests: packet.referenceLibrary.ruleDigests }, current.referenceLibrary)
+  if (changed.length) throw Error(`Прочитанные справки изменились: ${changed.join(', ')}`)
+  const result = validateReview(report, current)
+  const path = architectureReviewPath(root, slug)
+  mkdirSync(dirname(path), { recursive: true })
+  writeFileSync(path, JSON.stringify({ version: 1, process: slug, stage: 'architecture',
+    status: result.status, inputDigest: current.inputDigest, rubricVersion: current.rubricVersion,
+    reviewer: { kind: 'subagent', reference: agentReference }, reviewedAt: new Date().toISOString(),
+    inspectedFiles: report.inspectedFiles, inspectedReferences: report.inspectedReferences,
+    referenceHashes, ruleDigests: packet.referenceLibrary.ruleDigests,
+    skillVersion: packet.referenceLibrary.files.find(file => file.path === 'skills/chatium-processes/SKILL.md')?.sha256,
+    answers: result.answers }, null, 2) + '\n')
+  return { ...result, path }
+}
+
+export function architectureReviewStatus({ root, slug, skillDir = SKILL_DIR }) {
+  const path = architectureReviewPath(root, slug), packet = makeArchitectureReviewPacket({ root, slug, skillDir })
+  if (!existsSync(path)) return { status: 'missing', path, error: 'Нет независимого заключения по архитектуре.' }
+  const report = JSON.parse(readFileSync(path, 'utf8'))
+  if (report.version !== 1 || report.process !== slug || report.stage !== 'architecture' ||
+      report.reviewer?.kind !== 'subagent' || typeof report.reviewer.reference !== 'string' || !report.reviewer.reference.trim() ||
+      !Number.isFinite(Date.parse(report.reviewedAt))) throw Error('Неверная принадлежность или происхождение заключения.')
+  const changedReferences = changedInspectedReferences(report, packet.referenceLibrary)
+  if (changedReferences.length) return { status: 'stale', path, changedReferences,
+    error: `Изменились прочитанные справки: ${changedReferences.join(', ')}` }
+  if (report.inputDigest !== packet.inputDigest) return { status: 'stale', path,
+    error: 'План, карта, знания, рубрика или обязательные правила изменились.' }
+  return { ...validateReview(report, packet), path, reviewedAt: report.reviewedAt, reviewer: report.reviewer,
+    informationalReferences: informationalReferenceChanges(report, packet.referenceLibrary) }
+}

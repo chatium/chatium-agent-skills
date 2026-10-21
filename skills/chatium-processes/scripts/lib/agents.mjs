@@ -1,0 +1,285 @@
+import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync } from 'node:fs'
+import { isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { isFile } from './project.mjs'
+import { parseYaml } from './yaml.mjs'
+
+const KEY = /^[a-z][a-z0-9-]*$/
+const DECISIONS = new Set(['accepted', 'declined', 'deferred'])
+const TOKEN_PERIODS = new Set(['day', 'hour', 'minute', 'second'])
+
+function validTokenLimit(value) {
+  if (value === undefined) return true
+  if (!value || typeof value !== 'object' || Array.isArray(value) ||
+      !['const', 'hard', 'soft'].includes(value.kind) ||
+      typeof value.value !== 'number' || !Number.isFinite(value.value) || value.value <= 0) return false
+  return value.kind === 'const' || (typeof value.periodValue === 'number' &&
+    Number.isFinite(value.periodValue) && value.periodValue > 0 && TOKEN_PERIODS.has(value.periodUnit))
+}
+
+function validKnowledgeBaseConfig(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  if (value.mode === 'allAvailableToAgents') return Object.keys(value).length === 1
+  return value.mode === 'ids' && Object.keys(value).length === 2 &&
+    Array.isArray(value.ids) && value.ids.length > 0 && value.ids.length <= 50 &&
+    value.ids.every(id => typeof id === 'string' && Boolean(id.trim())) &&
+    new Set(value.ids).size === value.ids.length
+}
+
+function validAutonomyPlan(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  if (!['first-message', 'only_if_no_reply', 'even_if_they_reply', 'repeat_until_cancelled'].includes(value.mode)) return false
+  if (!Number.isInteger(value.maxAttempts) || value.maxAttempts < 1 || value.maxAttempts > 20) return false
+  for (const field of ['start', 'stateSource', 'stopWhen', 'cancelWhen', 'quietHours', 'cancelCase'])
+    if (typeof value[field] !== 'string' || !value[field].trim()) return false
+  return value.mode !== 'repeat_until_cancelled' ||
+    (typeof value.taskKey === 'string' && Boolean(value.taskKey.trim()))
+}
+
+function agentFiles(dir, errors) {
+  const files = []
+  function visit(path) {
+    for (const name of readdirSync(path)) {
+      if (name === 'node_modules' || name === '.git') continue
+      const child = join(path, name), stat = lstatSync(child)
+      if (stat.isSymbolicLink()) {
+        if (child.endsWith('.agent.json')) errors.push(`конфиг ${child} не должен быть символической ссылкой`)
+      } else if (stat.isDirectory()) visit(child)
+      else if (stat.isFile() && child.endsWith('.agent.json')) files.push(child)
+    }
+  }
+  if (existsSync(dir)) visit(dir)
+  return files
+}
+
+function localFile(root, value) {
+  if (typeof value !== 'string' || !value.trim() || isAbsolute(value)) return null
+  const absolute = resolve(root, value)
+  const rel = relative(root, absolute)
+  if (!rel || rel === '..' || rel.startsWith(`..${sep}`)) return null
+  if (existsSync(absolute)) {
+    const canonical = realpathSync(absolute)
+    const canonicalRel = relative(realpathSync(root), canonical)
+    if (!canonicalRel || canonicalRel === '..' || canonicalRel.startsWith(`..${sep}`)) return null
+  }
+  return absolute
+}
+
+function loadYaml(path, errors, label) {
+  if (!isFile(path)) {
+    errors.push(`нет ${label}`)
+    return null
+  }
+  try { return parseYaml(readFileSync(path, 'utf8')) }
+  catch (error) { errors.push(`${label}: ${error.message}`); return null }
+}
+
+function validateKnowledgeAccess(root, sources, config, where, errors) {
+  const seen = new Set()
+  for (const [index, source] of sources.entries()) {
+    const label = `${where}.knowledge[${index}]`, path = typeof source === 'string' ? source : source?.path
+    const file = localFile(root, path)
+    if (!file || !existsSync(file)) { errors.push(`${label}: нет локального источника ${path || '?'}`); continue }
+    if (seen.has(path)) errors.push(`${label}: повторный источник ${path}`)
+    seen.add(path)
+    if (!isFile(file)) { errors.push(`${label}: источник не является файлом`); continue }
+    let content
+    try { content = readFileSync(file, 'utf8') }
+    catch (error) { errors.push(`${label}: источник не читается: ${error.message}`); continue }
+    if (!content.trim()) { errors.push(`${label}: источник пуст`); continue }
+    if (source.via === 'instructions') {
+      if (typeof source.sourceQuote !== 'string' || source.sourceQuote.trim().length < 12 ||
+          typeof source.instructionQuote !== 'string' || source.instructionQuote.trim().length < 12 ||
+          !content.includes(source.sourceQuote) ||
+          !Array.isArray(config.instructions) ||
+          !config.instructions.some(instruction => typeof instruction === 'string' && instruction.includes(source.instructionQuote)))
+        errors.push(`${label}: для via: instructions нужны настоящие цитаты из статьи и фактической инструкции агента.`)
+    } else if (source.via === 'knowledge-base') {
+      if (typeof source.baseId !== 'string' || !source.baseId.trim() ||
+          !config.knowledgeBase ||
+          (config.knowledgeBase.mode !== 'allAvailableToAgents' &&
+           (config.knowledgeBase.mode !== 'ids' || !Array.isArray(config.knowledgeBase.ids) ||
+            !config.knowledgeBase.ids.includes(source.baseId))))
+        errors.push(`${label}: база ${source.baseId || '?'} не подключена в .agent.json; доступ к статье проверь отдельно в рантайме.`)
+    } else errors.push(`${label}: укажи via: instructions или knowledge-base; ссылка в spec не даёт агенту доступ к статье.`)
+  }
+}
+
+/** Local, read-only checks. Published agents, routing and tool availability require separate verification. */
+export function validateProcessAgents({ root, slug, map }) {
+  const errors = [], warnings = []
+  const dir = resolve(root, slug)
+  const configs = agentFiles(dir, errors)
+  const agentNodes = (map?.nodes || []).filter(node => node?.kind === 'agent')
+  const specPath = resolve(dir, 'agents/spec.yaml')
+  const casesPath = resolve(dir, 'agents/cases.yaml')
+  if (!configs.length && !agentNodes.length && !existsSync(specPath) && !errors.length) return { errors, warnings, enabled: false }
+
+  const spec = loadYaml(specPath, errors, `${slug}/agents/spec.yaml`)
+  const cases = loadYaml(casesPath, errors, `${slug}/agents/cases.yaml`)
+  if (!spec || !cases) return { errors, warnings, enabled: true }
+  if (spec.version !== 1) errors.push('agents/spec.yaml: version должен быть 1')
+  if (cases.version !== 1) errors.push('agents/cases.yaml: version должен быть 1')
+  if (!Array.isArray(spec.opportunities)) errors.push('agents/spec.yaml: нужен список opportunities с решениями владельца')
+  if (!Array.isArray(spec.agents)) errors.push('agents/spec.yaml: нужен список agents')
+  if (!Array.isArray(cases.cases)) errors.push('agents/cases.yaml: нужен список cases')
+  const opportunities = new Map()
+  for (const [i, item] of (Array.isArray(spec.opportunities) ? spec.opportunities : []).entries()) {
+    const where = `opportunities[${i}]`
+    if (!KEY.test(item?.id || '')) errors.push(`${where}: нужен устойчивый id`)
+    if (!DECISIONS.has(item?.decision)) errors.push(`${where}: decision — accepted, declined или deferred`)
+    if (!item?.need || !item?.reason) errors.push(`${where}: нужны need и reason`)
+    if (opportunities.has(item?.id)) errors.push(`${where}: повторный id ${item.id}`)
+    opportunities.set(item?.id, item)
+  }
+  const byKey = new Map(), byNode = new Map(), byConfig = new Map(), redirectGoals = new Set()
+  for (const [i, agent] of (Array.isArray(spec.agents) ? spec.agents : []).entries()) {
+    const where = `agents[${i}]`
+    if (!KEY.test(agent?.key || '')) errors.push(`${where}: нужен устойчивый key`)
+    if (byKey.has(agent?.key)) errors.push(`${where}: повторный key ${agent.key}`)
+    byKey.set(agent?.key, agent)
+    for (const field of ['role', 'outcome', 'boundary']) if (!agent?.[field]) errors.push(`${where}: нет ${field}`)
+    if (!Array.isArray(agent?.inputs) || !agent.inputs.length) errors.push(`${where}: опиши входы в inputs`)
+    else for (const [j, input] of agent.inputs.entries())
+      if (typeof input?.kind !== 'string' || !input.kind.trim() || typeof input?.source !== 'string' || !input.source.trim())
+        errors.push(`${where}.inputs[${j}]: нужны kind и source`)
+    if (Array.isArray(agent?.inputs) && agent.inputs.some(input => input?.kind === 'manual')) {
+      const delivery = agent.delivery
+      const handler = localFile(root, delivery?.handler)
+      if (!['direct-output', 'send-tool'].includes(delivery?.kind) || !handler || !isFile(handler))
+        errors.push(`${where}: ручной вход требует delivery.kind (direct-output или send-tool) и существующий delivery.handler; без приёмника ответа агент может зациклиться на отсутствующей отправке`)
+    }
+    if (!Array.isArray(agent?.knowledge)) errors.push(`${where}: knowledge должен быть списком фактически доступных источников`)
+    if (!Array.isArray(agent?.tools)) errors.push(`${where}: tools должен быть списком доступных действий`)
+    else for (const [j, tool] of agent.tools.entries())
+      if (typeof tool?.name !== 'string' || !tool.name.trim() || typeof tool?.source !== 'string' || !tool.source.trim())
+        errors.push(`${where}.tools[${j}]: нужны name и source`)
+    if (!Array.isArray(agent?.cases) || !agent.cases.length) errors.push(`${where}: нужны связанные сценарии cases`)
+    if (opportunities.get(agent?.opportunity)?.decision !== 'accepted') errors.push(`${where}: opportunity должен ссылаться на принятое применение`)
+    const configPath = localFile(root, agent?.config)
+    if (!configPath || !configPath.startsWith(`${resolve(dir, 'agents')}${sep}`) || !configPath.endsWith('.agent.json')) errors.push(`${where}: config должен вести к *.agent.json внутри ${slug}/agents/`)
+    else {
+      if (byConfig.has(configPath)) errors.push(`${where}: config повторяется`)
+      byConfig.set(configPath, agent)
+      if (!isFile(configPath)) errors.push(`${where}: нет ${agent.config}`)
+      else try {
+        const config = JSON.parse(readFileSync(configPath, 'utf8'))
+        if (!config.title || !config.model || !Array.isArray(config.instructions) || !config.instructions.some(s => typeof s === 'string' && s.trim())) errors.push(`${where}: в конфиге нужны title, model и непустые instructions[]`)
+        if (config.goal?.type === 'redirect2') redirectGoals.add(agent.key)
+        if (config.enabledTools !== undefined && (!Array.isArray(config.enabledTools) || config.enabledTools.some(ref =>
+          !ref || typeof ref !== 'object' || typeof ref.isWorkspaceTool !== 'boolean' ||
+          typeof ref.path !== 'string' || !ref.path || typeof ref.pattern !== 'string' || !ref.pattern ||
+          (!ref.isWorkspaceTool && !Number.isInteger(ref.accountId)))))
+          errors.push(`${where}: enabledTools должен содержать канонические ссылки на инструменты`)
+        if (config.knowledgeBase !== undefined && !validKnowledgeBaseConfig(config.knowledgeBase))
+          errors.push(`${where}: knowledgeBase должен быть allAvailableToAgents либо ids с 1–50 уникальными ID баз.`)
+        if (!validTokenLimit(config.tokensLimitPerChain))
+          errors.push(`${where}: tokensLimitPerChain должен быть объектом {kind: "const", value: число} либо {kind: "hard"|"soft", value: число, periodValue: число, periodUnit}`)
+        if (config.waitingToolEnabled === true || config.scheduleMessagesEnabled === true) {
+          if (!validAutonomyPlan(agent.autonomy))
+            errors.push(`${where}: инициативные касания требуют autonomy с mode, start, stateSource, stopWhen, cancelWhen, quietHours, maxAttempts и cancelCase; повтор требует taskKey`)
+          if (typeof config.timeZone !== 'string' || !config.timeZone.trim() || !validTokenLimit(config.tokensLimitPerChain) || !config.tokensLimitPerChain)
+            errors.push(`${where}: инициативные касания требуют timeZone и действительный tokensLimitPerChain в .agent.json`)
+        }
+        for (const field of ['department', 'specialists', 'supervisorAgentId']) if (field in config) errors.push(`${where}: ${field} относится к старой схеме отделов`)
+        validateKnowledgeAccess(root, Array.isArray(agent?.knowledge) ? agent.knowledge : [], config, where, errors)
+      } catch (error) { errors.push(`${where}: ${agent.config} не разбирается как JSON: ${error.message}`) }
+    }
+    const node = agentNodes.find(node => node.id === agent?.node)
+    if (!node) errors.push(`${where}: нет узла карты ${agent?.node}`)
+    else if (configPath && resolve(root, node.source || '') !== configPath) errors.push(`${where}: source узла ${agent.node} не совпадает с config`)
+    if (byNode.has(agent?.node)) errors.push(`${where}: узел ${agent.node} назначен дважды`)
+    byNode.set(agent?.node, agent)
+  }
+  for (const node of agentNodes) if (!byNode.has(node.id)) errors.push(`узел ${node.id} не описан в agents/spec.yaml`)
+  for (const path of configs) if (!byConfig.has(path)) errors.push(`конфиг ${relative(root, path)} не описан в agents/spec.yaml`)
+
+  const caseIds = new Set(), caseById = new Map(), linkedCases = new Set()
+  for (const [i, item] of (Array.isArray(cases.cases) ? cases.cases : []).entries()) {
+    const where = `cases[${i}]`
+    if (!KEY.test(item?.id || '') || caseIds.has(item?.id)) errors.push(`${where}: нужен уникальный id`)
+    caseIds.add(item?.id)
+    caseById.set(item?.id, item)
+    if (!byKey.has(item?.agent)) errors.push(`${where}: неизвестный agent ${item?.agent}`)
+    for (const field of ['situation', 'expected', 'evidence']) if (!item?.[field]) errors.push(`${where}: нет ${field}`)
+  }
+  for (const agent of byKey.values()) for (const id of (Array.isArray(agent?.cases) ? agent.cases : [])) {
+    if (!caseIds.has(id)) errors.push(`агент ${agent.key}: нет сценария ${id}`)
+    else if (caseById.get(id)?.agent !== agent.key) errors.push(`агент ${agent.key}: сценарий ${id} назначен другому помощнику`)
+    else linkedCases.add(id)
+  }
+  for (const agent of byKey.values()) if (agent.autonomy?.cancelCase &&
+      (caseById.get(agent.autonomy.cancelCase)?.agent !== agent.key ||
+       !linkedCases.has(agent.autonomy.cancelCase)))
+    errors.push(`агент ${agent.key}: autonomy.cancelCase должен ссылаться на связанный сценарий отмены этого помощника`)
+  for (const id of caseIds) if (!linkedCases.has(id) && byKey.has(caseById.get(id)?.agent))
+    errors.push(`сценарий ${id} не привязан к своему помощнику`)
+
+  const routes = Array.isArray(spec.routes) ? spec.routes : []
+  if (spec.routes !== undefined && !Array.isArray(spec.routes)) errors.push('routes должен быть списком')
+  const channels = new Set()
+  for (const [i, route] of routes.entries()) {
+    const where = `routes[${i}]`
+    if (!route?.channel) errors.push(`${where}: нет channel`)
+    if (channels.has(route?.channel)) errors.push(`${where}: повторный маршрут канала ${route.channel}`)
+    channels.add(route?.channel)
+    if (!byKey.has(route?.firstAgent)) errors.push(`${where}: неизвестный firstAgent ${route?.firstAgent}`)
+    if (route?.fallback && !byKey.has(route.fallback)) errors.push(`${where}: неизвестный fallback ${route.fallback}`)
+    if (route?.fallback && route.fallback !== route.firstAgent) warnings.push(`${where}: отдельный запасной агент требует явных правил маршрутизации; простой SDK задаёт только одного адресата по умолчанию`)
+    if (!route?.existingConversation) errors.push(`${where}: опиши существующий разговор в existingConversation`)
+    if (route?.testNewContacts !== undefined && (!Array.isArray(route.testNewContacts) || !route.testNewContacts.length || route.testNewContacts.length > 5 ||
+        route.testNewContacts.some(contact => typeof contact?.type !== 'string' || !contact.type.trim() || contact.type.length > 100 ||
+          typeof contact?.value !== 'string' || !contact.value.trim() || contact.value.length > 500)))
+      errors.push(`${where}: testNewContacts должен содержать 1–5 тестовых контактов с type и value`)
+    if (route?.testExistingContacts !== undefined) {
+      if (!Array.isArray(route.testExistingContacts) || !route.testExistingContacts.length || route.testExistingContacts.length > 5 ||
+          route.testExistingContacts.some(contact => typeof contact?.type !== 'string' || !contact.type.trim() || contact.type.length > 100 ||
+            typeof contact?.value !== 'string' || !contact.value.trim() || contact.value.length > 500))
+        errors.push(`${where}: testExistingContacts должен содержать 1–5 тестовых контактов с существующей CRM-цепочкой`)
+    }
+    if ((route?.testExistingContacts !== undefined || route?.expectedExistingAgent !== undefined) &&
+        !byKey.has(route.expectedExistingAgent))
+      errors.push(`${where}: expectedExistingAgent должен указывать существующего помощника`)
+  }
+  if (spec.handoffs !== undefined && !Array.isArray(spec.handoffs)) errors.push('handoffs должен быть списком')
+  const handoffKeys = new Set()
+  for (const [i, handoff] of (Array.isArray(spec.handoffs) ? spec.handoffs : []).entries()) {
+    const where = `handoffs[${i}]`
+    if (!byKey.has(handoff?.from) || !byKey.has(handoff?.to) || handoff.from === handoff.to) errors.push(`${where}: нужны разные существующие from и to`)
+    for (const field of ['when', 'summary', 'context', 'onFailure'])
+      if (typeof handoff?.[field] !== 'string' || !handoff[field].trim()) errors.push(`${where}: нет ${field}`)
+    const key = JSON.stringify([handoff?.from, handoff?.to, handoff?.when])
+    if (handoffKeys.has(key)) errors.push(`${where}: повторная передача from/to/when`)
+    handoffKeys.add(key)
+    const scenario = caseById.get(handoff?.case)
+    if (!scenario || scenario.agent !== handoff.from || !linkedCases.has(handoff.case))
+      errors.push(`${where}: case должен быть связанным сценарием исходного помощника`)
+    if (handoff?.mechanism === 'goal-redirect2') {
+      const source = byKey.get(handoff.from)
+      const configPath = localFile(root, source?.config)
+      if (configPath && isFile(configPath)) {
+        try {
+          const goal = JSON.parse(readFileSync(configPath, 'utf8')).goal
+          if (goal?.type !== 'redirect2' || typeof goal.trigger !== 'string' || !goal.trigger.trim() ||
+              !Array.isArray(goal.redirectToAgentIds) || !goal.redirectToAgentIds.length ||
+              goal.redirectToAgentIds.some(id => typeof id !== 'string' || !id.trim()) ||
+              (goal.messageText !== undefined && typeof goal.messageText !== 'string'))
+            errors.push(`${where}: исходный агент должен иметь цель redirect2 с trigger и redirectToAgentIds`)
+          else {
+            const target = agentNodes.find(node => node.id === byKey.get(handoff.to)?.node)
+            if (target?.agentId && !goal.redirectToAgentIds.includes(target.agentId))
+              errors.push(`${where}: redirectToAgentIds не содержит опубликованный agentId ${handoff.to}`)
+          }
+        } catch { /* Некорректный JSON уже сообщён при проверке конфига агента. */ }
+      }
+    } else if (handoff?.mechanism === 'sdk-redirect') {
+      const handler = localFile(root, handoff?.handler)
+      if (!handler || !isFile(handler))
+        errors.push(`${where}: sdk-redirect требует существующий handler в аккаунте`)
+    } else errors.push(`${where}: mechanism должен быть goal-redirect2 или sdk-redirect`)
+  }
+  for (const key of redirectGoals)
+    if (!Array.isArray(spec.handoffs) || !spec.handoffs.some(handoff => handoff?.from === key && handoff.mechanism === 'goal-redirect2'))
+      errors.push(`агент ${key}: цель redirect2 не описана в handoffs`)
+  if (byKey.size && !routes.length) warnings.push('Нет routes: если агент принимает сообщения из общего канала, укажи первый адресат и поведение существующего разговора')
+  return { errors, warnings, enabled: true }
+}

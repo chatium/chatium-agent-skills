@@ -8,9 +8,13 @@ stored media, background jobs, AI agents, automations, messaging, analytics, and
 platform SDK integrations. Topic references are loaded only for the requested task.
 References may be in English or Russian; agents respond in the user's language.
 
+[chatium-processes](skills/chatium-processes/SKILL.md) guides multi-stage customer
+journeys: discovery, process maps, implementation, independent reviews, testing
+and launch. It uses `chatium-development` for platform SDKs and application code.
+
 Skills live in `skills/chatium-<name>/SKILL.md`. Each skill has YAML frontmatter
 with a matching `name` and a `description`. Supporting documents and executable
-helpers live beside `SKILL.md` in a flat skill directory. Topic prefixes such as
+helpers live beside `SKILL.md` or in its task-specific subdirectories. Topic prefixes such as
 `google-` and `sender-` identify related articles. Skill directories contain regular
 files without symlinks.
 

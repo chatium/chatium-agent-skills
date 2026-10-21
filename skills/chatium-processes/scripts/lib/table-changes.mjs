@@ -1,0 +1,150 @@
+import { createHash } from 'node:crypto'
+import { spawnSync } from 'node:child_process'
+import { existsSync, lstatSync, readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
+import { isProcessSlug, rel } from './project.mjs'
+import { balancedObjectEnd, scanJsSource } from './source-lex.mjs'
+
+const sha = body => createHash('sha256').update(body).digest('hex')
+const text = value => typeof value === 'string' && value.trim().length > 0
+
+function tableShape(source) {
+  const { clean, code } = scanJsSource(source)
+  const names = [...clean.matchAll(/\bHeap\.Table\s*\(\s*(['"`])([^'"`]+)\1\s*,/g)]
+    .filter(match => code.slice(match.index, match.index + 'Heap.Table'.length) === 'Heap.Table')
+  if (names.length !== 1) return null
+  const name = names[0]
+  let opening = name.index + name[0].length
+  while (/\s/.test(clean[opening] || '')) opening++
+  const closing = balancedObjectEnd(code, opening)
+  if (closing < 0) return null
+  const body = clean.slice(opening + 1, closing), bodyCode = code.slice(opening + 1, closing)
+  if (body.includes('...')) return null
+  const fields = new Map()
+  const pattern = /\b([A-Za-z_$][\w$]*)\s*:\s*(Heap\.[A-Za-z_$][\w$]*\s*\()/g
+  let cursor = 0, braces = 0
+  for (const match of body.matchAll(pattern)) {
+    if (bodyCode.slice(match.index, match.index + match[1].length) !== match[1]) continue
+    for (; cursor < match.index; cursor++) {
+      if (bodyCode[cursor] === '{') braces++
+      else if (bodyCode[cursor] === '}') braces--
+    }
+    if (braces !== 0) continue
+    if (fields.has(match[1])) return null
+    const start = match.index + match[0].lastIndexOf('Heap.')
+    let depth = 0, quote = '', end = start
+    for (; end < body.length; end++) {
+      const char = body[end]
+      if (quote) {
+        if (char === '\\') { end++; continue }
+        if (char === quote) quote = ''
+      } else if (char === '"' || char === "'" || char === '`') quote = char
+      else if (char === '(') depth++
+      else if (char === ')' && --depth === 0) { end++; break }
+    }
+    if (depth !== 0) return null
+    fields.set(match[1], [...body.slice(start, end).matchAll(/\bHeap\.([A-Za-z_$][\w$]*)/g)]
+      .map(item => item[1]).join('>'))
+  }
+  return fields.size ? { name: name[2], fields } : null
+}
+
+function schemaRisks(previous, current) {
+  const before = tableShape(previous), after = tableShape(current)
+  if (!before || !after) return { unknown: true, nameChanged: false, changedFields: [], addedRequired: [] }
+  const changedFields = [...before.fields].filter(([name, type]) => after.fields.get(name) !== type).map(([name]) => name)
+  const addedRequired = [...after.fields].filter(([name, type]) => !before.fields.has(name) && !type.startsWith('Optional>')).map(([name]) => name)
+  return { unknown: false, nameChanged: before.name !== after.name, changedFields, addedRequired }
+}
+
+function displayTitleOnly(previous, current) {
+  const before = tableShape(previous), after = tableShape(current)
+  if (!before || !after || before.name !== after.name || before.fields.size !== after.fields.size ||
+      [...before.fields].some(([name, type]) => after.fields.get(name) !== type)) return false
+  const title = /(\bcustomMeta\s*:\s*\{\s*title\s*:\s*)(?:'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*")(\s*\})/g
+  const withoutTitles = source => source.replace(title, '$1__DISPLAY_TITLE__$2')
+  return withoutTitles(previous) === withoutTitles(current)
+}
+
+function git(root, args) {
+  const result = spawnSync('git', args, { cwd: root, encoding: 'utf8', timeout: 5000,
+    maxBuffer: 2 * 1024 * 1024, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } })
+  return result.status === 0 ? result.stdout : null
+}
+
+/** Conservative source-change gate; the reviewer must still assess schema semantics and real occupancy. */
+export function tableChangeStatus({ root, slug, stage = 'build' }) {
+  if (!isProcessSlug(slug)) throw Error('Некорректный процесс.')
+  const changed = [], errors = [], risks = new Map()
+  const files = []
+  let entries = 0
+  function visit(path) {
+    if (++entries > 5000) throw Error('Слишком много файлов при поиске схем таблиц.')
+    const stat = lstatSync(path)
+    if (stat.isSymbolicLink()) { errors.push(`${rel(root, path)}: ссылка в дереве таблиц не проверяется.`); return }
+    if (stat.isDirectory()) {
+      for (const name of readdirSync(path)) if (!['node_modules', '.git', 'reviews', 'tasks'].includes(name))
+        visit(join(path, name))
+    } else if (stat.isFile() && path.endsWith('.table.ts')) files.push(path)
+  }
+  if (existsSync(join(root, slug))) visit(join(root, slug))
+  for (const file of files) {
+    const path = rel(root, file), current = readFileSync(file, 'utf8'), currentSha256 = sha(current)
+    const shape = tableShape(current)
+    for (const field of ['id', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy'])
+      if (shape?.fields.has(field)) errors.push(`${path}: системное поле ${field} нельзя объявлять в Heap.Table.`)
+    const revisions = git(root, ['log', '--format=%H', '--max-count=2', '--', path])?.split('\n').filter(Boolean)
+    if (!revisions) { errors.push(`${path}: история Git недоступна; сравнение схемы не подтверждено.`); continue }
+    const latest = revisions[0] ? git(root, ['show', `${revisions[0]}:${path}`]) : null
+    const prior = revisions[1] ? git(root, ['show', `${revisions[1]}:${path}`]) : null
+    const previous = latest === current ? prior : latest
+    if (previous !== null && previous !== current && !displayTitleOnly(previous, current)) {
+      changed.push({ path, currentSha256, previousSha256: sha(previous) })
+      risks.set(path, schemaRisks(previous, current))
+    }
+  }
+  if (!changed.length) return { status: errors.length ? 'unverified' : 'ready', changed, errors }
+  const path = join(root, slug, 'tables/schema-decisions.json')
+  if (!existsSync(path)) return { status: 'missing', changed,
+    errors: [...errors, `Нет ${rel(root, path)} для изменённых таблиц: ${changed.map(item => item.path).join(', ')}.`] }
+  if (lstatSync(path).isSymbolicLink() || lstatSync(path).size > 64 * 1024)
+    return { status: 'invalid', changed, errors: [...errors, 'Реестр изменений таблиц должен быть обычным JSON до 64 KB.'] }
+  let registry
+  try { registry = JSON.parse(readFileSync(path, 'utf8')) }
+  catch { return { status: 'invalid', changed, errors: [...errors, 'Реестр изменений таблиц не разбирается.'] } }
+  if (registry?.version !== 1 || !Array.isArray(registry.changes) || registry.changes.length > 100)
+    return { status: 'invalid', changed, errors: [...errors, 'Нужны version: 1 и changes (до 100).'] }
+  const records = new Map()
+  for (const record of registry.changes)
+    if (!text(record?.path) || records.has(record.path)) errors.push('В changes повторяется или отсутствует путь таблицы.')
+    else records.set(record.path, record)
+  for (const item of changed) {
+    const record = records.get(item.path)
+    if (!record) { errors.push(`${item.path}: нет проверки изменения схемы.`); continue }
+    if (record.currentSha256 !== item.currentSha256 || record.previousSha256 !== item.previousSha256)
+      errors.push(`${item.path}: решение относится к другой версии таблицы.`)
+    if (!['empty', 'populated', 'unknown'].includes(record.occupancy) ||
+        !text(record.rowCheckReference) || !Number.isFinite(Date.parse(record.rowsCheckedAt)))
+      errors.push(`${item.path}: нет проверки фактических строк через Chatium.`)
+    if (!['additive-or-metadata', 'confirmation', 'migration'].includes(record.changeClass) || !text(record.reason))
+      errors.push(`${item.path}: нужна классификация изменения и её обоснование.`)
+    const risk = risks.get(item.path)
+    if (risk?.nameChanged && record.changeClass !== 'migration')
+      errors.push(`${item.path}: смена физического имени таблицы требует миграции.`)
+    if (risk?.changedFields.length && record.changeClass !== 'migration')
+      errors.push(`${item.path}: удаление или смена типа поля ${risk.changedFields.join(', ')} требует миграции.`)
+    if (risk?.addedRequired.length && record.occupancy !== 'empty' && record.changeClass !== 'migration')
+      errors.push(`${item.path}: новое обязательное поле ${risk.addedRequired.join(', ')} в заполненной таблице требует миграции.`)
+    if (risk?.unknown && record.changeClass === 'additive-or-metadata')
+      errors.push(`${item.path}: структуру таблицы нельзя подтвердить как аддитивную автоматически; нужно отдельное решение.`)
+    if (record.occupancy !== 'empty' && ['confirmation', 'migration'].includes(record.changeClass) &&
+        (!text(record.ownerResponse) || !text(record.ownerMessageReference)))
+      errors.push(`${item.path}: нужно решение владельца для заполненной таблицы.`)
+    if (record.changeClass === 'migration' && !text(record.migrationPlan))
+      errors.push(`${item.path}: нужен план миграции, а не прямая смена типа или ссылок.`)
+    if (stage === 'launch' && (!text(record.persistedSchemaReference) ||
+        record.changeClass === 'migration' && !text(record.migrationResultReference)))
+      errors.push(`${item.path}: перед запуском перечитай сохранённую схему и результат миграции.`)
+  }
+  return { status: errors.length ? 'invalid' : 'ready', changed, errors, path }
+}
