@@ -12,7 +12,7 @@ Use this mechanism whenever the requested feature must notify account administra
 
 ## Producer API
 
-Inspect the target project's current `@store/sdk` declarations before coding. Use `sendNotification(ctx, input)` for a form or application event. Store adds or updates an event in the recipient's notification history and delivers it through the enabled channels. The caller's app slug/account code determines the source and stack; do not pass a source or bypass the public SDK to write Store data directly.
+Inspect the target project's current `@store/sdk` declarations before coding. Use `sendNotification(ctx, input)` for a form or application event. Store adds or updates an event in the recipient's notification history and delivers it through the enabled channels. Account code **must** pass `source: { key, title? }`; a plugin may omit it to use the whole plugin as the source, or pass it to create a separately configurable source. The namespace always comes from the authenticated caller, not input. Never write Store data directly.
 
 Chat and Sender already maintain their own notifications. Do not duplicate their messages by sending them through Store again; Store notification preferences do not control native Chat/Sender messages.
 
@@ -37,9 +37,13 @@ Call on the server after the business record has been saved. Use a stable, event
 ```ts
 import { sendNotification } from '@store/sdk'
 
+// Reuse this definition in the notification settings hook below.
+const notificationSource = { key: 'requests', title: 'Заявки' }
+
 // After successfully saving the application as `request`:
 const result = await sendNotification(ctx, {
   id: `request:${request.id}`,
+  source: notificationSource,
   recipients: { userIds: [responsibleStaffUserId] },
   typeKey: 'request.created',
   title: ctx.t('New request'),
@@ -48,7 +52,7 @@ const result = await sendNotification(ctx, {
 })
 ```
 
-The example works in account code as well as application/plugin server code. Use the real detail route: an account might use `/admin/requests/...`, while an application might use `/app/my-app/requests/...`. Store determines the source from the authenticated caller; do not forge an app identity for account code.
+The example works in account code as well as application/plugin server code. Use the real detail route: an account might use `/admin/requests/...`, while an application might use `/app/my-app/requests/...`. `source.key` is a local stable key, not the fully qualified `sourceKey` returned by the settings SDK. Account sources and plugin sources are isolated; different plugins cannot select each other's namespace. Missing `source.key` in account code throws `STORE_NOTIFICATION_SOURCE_KEY_REQUIRED`. Keys start with a Latin letter and contain only letters, digits, `.`, `_`, `-`, up to 80 characters. Optional `source.title` is up to 120 characters; without it the local key is shown (default plugin source: its slug). Reuse the same source definition in the hook and each send so settings and notification labels match. Do not infer identity from a workspace title, folder or URL.
 
 `recipients` accepts either `{ userIds: string[] }` or `{ accountRoles: ('Staff' | 'Admin' | 'Developer' | 'Owner')[] }`, not both in one call. Select only intended Staff+ recipients; Store also excludes Clients, bots, unknown users, and users without a Staff+ account role even when addressed by ID. This filtering is a safeguard, not permission to pass customer IDs. Prefer a known responsible staff user for a personal task; use roles only when everyone in that role should receive it. Role matching is exact: `['Staff']` does not also mean Admin/Developer/Owner. Explicit input accepts at most 500 IDs; after role expansion and Staff+ filtering, before channel preferences, at most 100 recipients may remain. Above 100 the whole call fails with `STORE_NOTIFICATION_RECIPIENT_LIMIT_EXCEEDED`, not a partial send. The protective source limit is 30 calls and 1000 deliveries per minute (`STORE_NOTIFICATION_RATE_LIMIT_EXCEEDED`); each enabled available channel counts as a delivery. These codes are in the error message, not a promised `error.code` property. Do not split a large audience into batches just to evade these limits; raise a bulk-delivery requirement separately.
 
@@ -70,28 +74,33 @@ Each variant has the same title/text limits as the fallback (160/4000 characters
 
 ## Register notification settings
 
-For an application/plugin, register the public `@store/get-notification-types` hook so that it appears in the settings UI and settings SDK. Only applications returning a valid hook response are configurable. An application without this hook can send notifications using defaults, but does not appear in settings. Account/workspace code can call `sendNotification` directly; it does not need to invent an application or register an app hook just to send.
+Register `@store/get-notification-types` with **`app.accountHook` in account/workspace code**, or **`app.pluginHook` inside a plugin**. Both return the same schema: `{ version, key?, title?, items?, groups? }`. Account handlers must return `key`; plugin handlers may omit it for the default plugin source. Only valid registered sources appear in settings, before their first notification. A source without a hook can send using defaults, but is not configurable. Do not create a fake plugin for account code.
 
-No categories are required. For just the common delivery-channel controls, return an empty group list:
+No categories are required. For common delivery controls in account code:
 
 ```ts
-app.pluginHook('@store/get-notification-types', () => ({
+const notificationSource = { key: 'requests', title: 'Заявки' }
+app.accountHook('@store/get-notification-types', () => ({
+  ...notificationSource,
   version: 'v1',
   groups: []
 }))
 ```
 
-Return the object, not `null`, `undefined`, or `{}`. With no `typeKey` on a send, the notification uses `general` and follows the application's channel settings. To expose per-type controls, declare groups whose item keys match the sent `typeKey`. In v1 `defaultEnabled: false` is unsupported; omit it or use `true`. Future/unknown types inherit the recipient's source settings, initially all four channels on.
+Return the object, not `null`, `undefined`, or `{}`. Use optional top-level `items` for a **flat list**, `groups` for collapsible groups, or both. Group/item keys are stable and have the same format as a source key. Item keys must be unique across the entire schema and match the sent `typeKey`. At most 20 groups and 100 types total; a declared group must not be empty. Duplicate source keys in the same caller namespace are invalid; register different account sources in separate hook modules with distinct keys. Without `typeKey`, the send uses `general`. `defaultEnabled: false` is unsupported; omit it or use `true`. Unknown types inherit the source channel settings.
 
 ```ts
 app.pluginHook('@store/get-notification-types', ctx => ({
   version: 'v1',
+  key: 'requests', // Optional for a plugin; required for an account hook.
+  title: ctx.t('Requests'),
+  items: [{ key: 'request.created', title: ctx.t('New requests') }],
   groups: [{
-    key: 'requests',
-    title: ctx.t('Requests'),
+    key: 'processing',
+    title: ctx.t('Processing'),
     items: [{
-      key: 'request.created',
-      title: ctx.t('New requests'),
+      key: 'request.completed',
+      title: ctx.t('Completed requests'),
       defaultEnabled: true
     }]
   }]
@@ -107,7 +116,7 @@ import { getNotificationSettings, updateNotificationSettings } from '@store/sdk'
 
 const settings = await getNotificationSettings(ctx)
 // Inspect settings.sources for application keys, titles, schemas and choices;
-// settings.workspaces contains the available workspace/account sources.
+// settings.workspaces contains registered account/workspace sources with the same schema.
 
 // User asks: "Disable Pay e-mails, keep the notification center unchanged."
 const updated = await updateNotificationSettings(ctx, {
@@ -123,7 +132,7 @@ await updateNotificationSettings(ctx, {
 })
 ```
 
-- `getNotificationSettings(ctx)` returns `{ sources, workspaces, schemasUnavailable, telegram }`. Each source includes `sourceKey`, title, `channels: { inbox, email, telegram, app }`, and per-type `typeOverrides`; applications also have `schema`. If discovery failed, do not assume the missing application's settings were reset.
+- `getNotificationSettings(ctx)` returns `{ sources, workspaces, schemasUnavailable, telegram }`. Both arrays have the same entry contract: `sourceKey`, title, `channels: { inbox, email, telegram, app }`, per-type `typeOverrides`, and `schema` with `items`/`groups` arrays. `sources` contains plugin sources; `workspaces` contains account sources, not an inferred workspace inventory. Use returned `sourceKey` unchanged in settings calls; use the local `source.key` when sending. If discovery failed, do not assume missing settings were reset.
 - `updateNotificationSettings(ctx, { sourceKey, channels, typeKeys? })` applies immediately and returns the resulting `{ sourceKey, channels, typeOverrides }`, the same settings used by the UI. `channels` must contain at least one boolean `inbox`/`email`/`telegram`/`app`; omitted channels and unrelated sources remain unchanged. `app` does not activate native push delivery yet.
 - Without `typeKeys`, the change applies to the entire source and clears its per-type exceptions **only for the selected channels**, just like the UI's whole-application toggle. With `typeKeys`, it changes only those types, preserving the source defaults and other types. A supplied list must contain 1–100 known type keys; an empty list is an error, not "all". `general` is also supported.
 - To reset one type to inheritance, set its selected channel to the source's value. To reset the whole source to defaults, omit `typeKeys` and set `{ inbox: true, email: true, telegram: true, app: true }`.
