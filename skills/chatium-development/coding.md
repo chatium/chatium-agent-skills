@@ -21,15 +21,16 @@ Use platform-provided Vue 3 single-file components. Put each major section and r
 
 For new Vue code, use `<script setup lang="ts">` with typed macros where needed: `defineProps<{ title: string }>()`, `defineEmits<{ save: [id: string] }>()`, and `defineExpose<{ focus: () => void }>({ focus })` for an existing `focus` function. Do not rewrite existing components solely to adopt this convention. Create new UI in the task's language; preserve an existing interface's localization.
 
-Page shells import the workspace's common `Styles` from `styles.tsx` and render it in `<head>`; create that module once if absent. Interactive code belongs in Vue. html-jsx cannot serialize functions in attributes or children; inline scripts in the shell's `<head>` are for trusted analytics/tracking snippets that need to run at page load.
+Page shells import the workspace's common `Styles` from `styles.tsx` and render it in `<head>`; create that module once if absent, with the workspace's [Tailwind entry](#tailwind). Interactive code belongs in Vue. html-jsx cannot serialize functions in attributes or children; inline scripts in the shell's `<head>` are for trusted analytics/tracking snippets that need to run at page load.
 
 ```tsx
 // styles.tsx
 import { jsx } from '@app/html-jsx'
+import AppCss from './app.css'
 
 export function Styles() {
   return <>
-    <script src="/s/static/lib/tailwind.3.4.16.min.js"></script>
+    <AppCss />
     <link href="/s/static/lib/fontawesome/6.7.2/css/all.min.css" rel="stylesheet" />
   </>
 }
@@ -108,6 +109,49 @@ onMounted(load)
 ```
 
 Server-loaded data can instead be passed as serializable props. For a bounded dataset, add pagination when needed using the application's API and [Heap query limits](heap-filter.md#filters-and-pagination).
+
+## Tailwind
+
+The build generates Tailwind CSS v3: any `.css` file with a top-level `@tailwind` directive is an entry, and `<AppCss />` links the generated stylesheet like any CSS module.
+
+```css
+/* app.css */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+@config "./tailwind.config.json";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .btn-primary {
+    @apply rounded-lg bg-primary px-4 py-2 text-white;
+  }
+}
+```
+
+`tailwind.config.json`:
+
+```json
+{
+  "theme": {
+    "extend": {
+      "colors": { "primary": "#2563eb" },
+      "fontFamily": { "sans": ["Inter", "sans-serif"] }
+    }
+  },
+  "safelist": ["bg-green-100", "bg-red-100"]
+}
+```
+
+- The CSS gets the classes written as complete strings in the `.ts`, `.tsx` and `.vue` modules that pages linking the entry import, directly or transitively. Importing a module only for a RouteRef (`.url()`, `.run(ctx)`) does not count, so every page shell renders `<Styles />` itself. CSS, JSON and Markdown files are not scanned.
+- Do not assemble class names (`'bg-' + color`); map values to complete class strings. Put classes that arrive from data (Heap, API responses) in `safelist`.
+- The config is JSON only, linked by `@config` with a path relative to the CSS file; without it the default theme applies. A JS config, inline `tailwind.config = {…}`, plugins and `content` have no effect here.
+- `@import` accepts only external URLs; put local CSS into the entry itself. v4 syntax (`@import "tailwindcss"`, `@theme`, `@source`, `@plugin`) is not processed.
+- Use `@apply` in the entry, not in Vue `<style>` or `<style type="text/tailwindcss">`.
+- An unknown `@apply` class, a missing or invalid config, or a local `@import` fails that file's build, leaving its pages without Tailwind styles; fix the error before reporting the page ready.
+- Do not load the Tailwind browser script (`tailwind.3.4.16.min.js`, `cdn.tailwindcss.com`) on pages that link an entry.
+
+An existing workspace that loads that script keeps it; move it to an entry only on request: its `tailwind.config` goes into the JSON config, its `<style type="text/tailwindcss">` blocks into the entry, and then the script is removed.
 
 ## QR codes
 

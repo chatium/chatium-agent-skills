@@ -1,6 +1,6 @@
 # Store plugin installation
 
-Use the public `@store/sdk` methods from `chatium exec` in a Source Git account. Both methods require an Admin user and an account-code caller. Installation is an account mutation that can grant the plugin access to account data; a general request to inspect or debug an account does not authorize it.
+Use the public `@store/sdk` methods from `chatium exec`. Both methods require an Admin user and an account-code caller. Installation is an account mutation that can grant the plugin access to account data; a general request to inspect or debug an account does not authorize it.
 
 ```ts
 import { getPluginInstallInfo, installPlugin } from '@store/sdk'

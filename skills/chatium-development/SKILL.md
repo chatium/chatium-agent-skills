@@ -40,7 +40,7 @@ For a business event that needs staff action—such as a submitted lead or faile
 | Task | Reference |
 | --- | --- |
 | Show or open a page, letter, letter folder, knowledge article, or automation; present the result of an edit | [preview.md](preview.md) |
-| Create a workspace, build/change Vue UI, or display a QR code | [coding.md](coding.md) |
+| Create a workspace, build/change Vue UI, style pages with Tailwind, or display a QR code | [coding.md](coding.md) |
 | Define an endpoint, navigate, call an API, assign a domain homepage via `.chatiumrc`, or connect an editor | [routing.md](routing.md) |
 | Define/change a table, write records, handle Money or links | [heap.md](heap.md) |
 | Filter, paginate, search, aggregate, or batch-load records | [heap-filter.md](heap-filter.md) |
@@ -49,7 +49,7 @@ For a business event that needs staff action—such as a submitted lead or faile
 | Work with «Хранилище», «Файловое хранилище», «Мой диск» / Vault: find/reuse existing materials, folders and their settings/covers, registered files, public folder links, or a file picker | [vault.md](vault.md) |
 | Schedule or cancel background work | [jobs.md](jobs.md) |
 | Inspect deployed data, debug server code, or seed data | [exec.md](exec.md) |
-| Read platform logs for an account with an available Source Git checkout | [Account logs](account-logs.md) |
+| Read platform account logs | [Account logs](account-logs.md) |
 | Inspect Store plugin permissions or install a plugin through `chatium exec` | [Store plugin installation](store-plugin-install.md) |
 | Add notifications/alerts for administrators or employees from any account/application code, or read/change the current staff user's delivery preferences at their request | [Notifications](notifications.md) |
 
@@ -67,7 +67,7 @@ When using materials already in Vault, resolve the [existing source](vault.md#re
 
 ### AI
 
-Agents run conversations with history and tools; their configuration lives in `*.agent.json` source files. In Git accounts, edit their configuration in source; use the agent SDK to run conversations. Standalone `startCompletion` from `@start/sdk` generates text, JSON or media with callback results.
+Agents run conversations with history and tools; their configuration lives in `*.agent.json` source files. Edit their configuration in source; use the agent SDK to run conversations. Standalone `startCompletion` from `@start/sdk` generates text, JSON or media with callback results.
 
 | Task | Reference |
 | --- | --- |
