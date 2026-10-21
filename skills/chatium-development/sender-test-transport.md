@@ -6,6 +6,14 @@ outgoing messages in ordinary Sender chats/feeds and an account-local test journ
 It does not contact external providers or enter billing. No external transport
 registration, production channel or fake recipient address is required.
 
+Missing external channels and real test contacts must not stop process design,
+build or supported internal tests. Explain the internal test path to the owner
+and record connection of the real provider as a launch prerequisite. This does
+not disable SDK validation for real sends: `mailings.send`, production automations
+and AI routing are not automatically redirected. Use a supported guarded callback
+integration; identify any unsupported case separately and continue the rest of
+the build. Never put the internal channel ID into production senderChannels.
+
 ## Prepare a protected run
 
 The transport requires installed Start and Sender plugins and a server-issued
