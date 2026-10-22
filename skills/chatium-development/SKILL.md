@@ -19,7 +19,7 @@ Before working in a workspace or isolated module, read its `.CHATIUM-LLM.md` if 
 
 When asked to add notifications or alerts for account administrators, employees, or other Staff+ users, read [Notifications](notifications.md) and use `sendNotification` from `@store/sdk`. This is the shared notification mechanism for **any account code, workspace, application, or plugin**, including form handlers, payment callbacks, automation actions, and background jobs. The user does not need to mention Store or choose it as a channel: Store supplies the API; it is not a restriction on where notifications can originate.
 
-Account/workspace notifications require an explicit local `source.key`; reuse the same `{ key, title? }` definition when sending and registering `app.accountHook('@store/get-notification-types', ...)`. Plugins use `app.pluginHook` with the same flat/grouped type schema; their source key is optional and always namespaced by the plugin. Read the reference before implementing registration or choosing a source key.
+Account/workspace notifications require an explicit local `source.key`. Register settings in both account and plugin code with `app.manifest('@store/notification-types', notificationTypesManifest, value)`, importing the typed handle from `@store/sdk`. Declarations are static: no `ctx`, database reads or async code. Plugins may omit the source key; their keys are always namespaced by the plugin. Read the reference for flat/grouped declarations and matching the sent source.
 
 For staff e-mail notifications, first check the current user's `ctx.user.confirmedEmail`. A typed address is not a delivery override. If the address is absent or the user wants a different one, explain that they must add/confirm it in their profile at `/app/users/me`; an enabled e-mail preference alone is insufficient. Do not substitute Sender, set an unverified contact, or debug delivery before checking this prerequisite. See [E-mail prerequisites](notifications.md#e-mail-prerequisites).
 
@@ -44,6 +44,7 @@ For a business event that needs staff action—such as a submitted lead or faile
 | Show or open a page, letter, letter folder, knowledge article, or automation; present the result of an edit | [preview.md](preview.md) |
 | Create a workspace, build/change Vue UI, style pages with Tailwind, or display a QR code | [coding.md](coding.md) |
 | Define an endpoint, navigate, call an API, assign a domain homepage via `.chatiumrc`, or connect an editor | [routing.md](routing.md) |
+| Declare static typed capabilities/settings through an SDK manifest, or define a manifest type in an SDK | [Manifests](manifests.md) |
 | Define/change a table, write records, handle Money or links | [heap.md](heap.md) |
 | Filter, paginate, search, aggregate, or batch-load records | [heap-filter.md](heap-filter.md) |
 | Enforce access, authenticate, or work with profiles/users | [auth.md](auth.md) |
