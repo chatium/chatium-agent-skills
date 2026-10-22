@@ -37,7 +37,7 @@ Call on the server after the business record has been saved. Use a stable, event
 ```ts
 import { sendNotification } from '@store/sdk'
 
-// Reuse this definition in the notification settings hook below.
+// Reuse this definition in the notification settings manifest below.
 const notificationSource = { key: 'requests', title: 'Заявки' }
 
 // After successfully saving the application as `request`:
@@ -52,7 +52,7 @@ const result = await sendNotification(ctx, {
 })
 ```
 
-The example works in account code as well as application/plugin server code. Use the real detail route: an account might use `/admin/requests/...`, while an application might use `/app/my-app/requests/...`. `source.key` is a local stable key, not the fully qualified `sourceKey` returned by the settings SDK. Account sources and plugin sources are isolated; different plugins cannot select each other's namespace. Missing `source.key` in account code throws `STORE_NOTIFICATION_SOURCE_KEY_REQUIRED`. Keys start with a Latin letter and contain only letters, digits, `.`, `_`, `-`, up to 80 characters. Optional `source.title` is up to 120 characters; without it the local key is shown (default plugin source: its slug). Reuse the same source definition in the hook and each send so settings and notification labels match. Do not infer identity from a workspace title, folder or URL.
+The example works in account code as well as application/plugin server code. Use the real detail route: an account might use `/admin/requests/...`, while an application might use `/app/my-app/requests/...`. `source.key` is a local stable key, not the fully qualified `sourceKey` returned by the settings SDK. Account sources and plugin sources are isolated; different plugins cannot select each other's namespace. Missing `source.key` in account code throws `STORE_NOTIFICATION_SOURCE_KEY_REQUIRED`. Keys start with a Latin letter and contain only letters, digits, `.`, `_`, `-`, up to 80 characters. Optional `source.title` is up to 120 characters; without it the local key is shown (default plugin source: its slug). Reuse the source key/title in the manifest and each send so settings and notification labels match. Do not infer identity from a workspace title, folder or URL.
 
 `recipients` accepts either `{ userIds: string[] }` or `{ accountRoles: ('Staff' | 'Admin' | 'Developer' | 'Owner')[] }`, not both in one call. Select only intended Staff+ recipients; Store also excludes Clients, bots, unknown users, and users without a Staff+ account role even when addressed by ID. This filtering is a safeguard, not permission to pass customer IDs. Prefer a known responsible staff user for a personal task; use roles only when everyone in that role should receive it. Role matching is exact: `['Staff']` does not also mean Admin/Developer/Owner. Explicit input accepts at most 500 IDs; after role expansion and Staff+ filtering, before channel preferences, at most 100 recipients may remain. Above 100 the whole call fails with `STORE_NOTIFICATION_RECIPIENT_LIMIT_EXCEEDED`, not a partial send. The protective source limit is 30 calls and 1000 deliveries per minute (`STORE_NOTIFICATION_RATE_LIMIT_EXCEEDED`); each enabled available channel counts as a delivery. These codes are in the error message, not a promised `error.code` property. Do not split a large audience into batches just to evade these limits; raise a bulk-delivery requirement separately.
 
@@ -74,37 +74,46 @@ Each variant has the same title/text limits as the fallback (160/4000 characters
 
 ## Register notification settings
 
-Register `@store/get-notification-types` with **`app.accountHook` in account/workspace code**, or **`app.pluginHook` inside a plugin**. Both return the same schema: `{ version, key?, title?, items?, groups? }`. Account handlers must return `key`; plugin handlers may omit it for the default plugin source. Only valid registered sources appear in settings, before their first notification. A source without a hook can send using defaults, but is not configurable. Do not create a fake plugin for account code.
+Use **the same static declaration in account/workspace code and plugins**: `app.manifest('@store/notification-types', notificationTypesManifest, value)`. Import `notificationTypesManifest` from `@store/sdk`; passing it as the second argument type-checks `{ version, key?, title?, items?, groups? }`. The optional exported `NotificationTypesDeclaration` type can annotate shared declaration data. Account declarations require `key`; plugin declarations may omit it for the default plugin source. Only valid declared sources appear in settings, before their first notification. A source without a manifest can send using defaults, but is not configurable. Do not create a fake plugin for account code.
 
 No categories are required. For common delivery controls in account code:
 
 ```ts
+import { notificationTypesManifest } from '@store/sdk'
+
 const notificationSource = { key: 'requests', title: 'Заявки' }
-app.accountHook('@store/get-notification-types', () => ({
+app.manifest('@store/notification-types', notificationTypesManifest, {
   ...notificationSource,
   version: 'v1',
   groups: []
-}))
+})
 ```
 
-Return the object, not `null`, `undefined`, or `{}`. Use optional top-level `items` for a **flat list**, `groups` for collapsible groups, or both. Group/item keys are stable and have the same format as a source key. Item keys must be unique across the entire schema and match the sent `typeKey`. At most 20 groups and 100 types total; a declared group must not be empty. Duplicate source keys in the same caller namespace are invalid; register different account sources in separate hook modules with distinct keys. Without `typeKey`, the send uses `general`. `defaultEnabled: false` is unsupported; omit it or use `true`. Unknown types inherit the source channel settings.
+The declaration contains only static data; for build-time restrictions and general SDK declaration rules, read [Manifests](manifests.md). Notification declarations need no RouteRefs.
+
+Pass the object, not `null`, `undefined`, or `{}`. Use optional top-level `items` for a **flat list**, `groups` for collapsible groups, or both. Group/item keys are stable and have the same format as a source key. Item keys must be unique across the entire schema and match the sent `typeKey`. At most 20 groups and 100 types total; a declared group must not be empty. Duplicate source keys in the same caller namespace are invalid; declare distinct keys for separate sources. Without `typeKey`, the send uses `general`. `defaultEnabled: false` is unsupported; omit it or use `true`. Unknown types inherit the source channel settings.
+
+Titles accept plain strings or static `t(...)` markers from `@app/i18n`. Store resolves markers for the settings viewer; do not use `ctx.t` inside a manifest. The send API's `source.title` still requires a ready string, e.g. `{ key: 'requests', title: ctx.t('Requests') }`, not the marker tuple.
 
 ```ts
-app.pluginHook('@store/get-notification-types', ctx => ({
+import { t } from '@app/i18n'
+import { notificationTypesManifest } from '@store/sdk'
+
+app.manifest('@store/notification-types', notificationTypesManifest, {
   version: 'v1',
-  key: 'requests', // Optional for a plugin; required for an account hook.
-  title: ctx.t('Requests'),
-  items: [{ key: 'request.created', title: ctx.t('New requests') }],
+  key: 'requests', // Optional for a plugin; required for account code.
+  title: t('Requests'),
+  items: [{ key: 'request.created', title: t('New requests') }],
   groups: [{
     key: 'processing',
-    title: ctx.t('Processing'),
+    title: t('Processing'),
     items: [{
       key: 'request.completed',
-      title: ctx.t('Completed requests'),
+      title: t('Completed requests'),
       defaultEnabled: true
     }]
   }]
-}))
+})
 ```
 
 ## Change the current user's settings
@@ -142,4 +151,4 @@ After a settings change, inspect the returned result or read settings again and 
 
 Before claiming the notification integration works, typecheck it with the current `@store/sdk` typings. With permission, send one event to an agreed test staff recipient and check their notification center and/or mailbox: `queued` alone does not prove receipt. Notifications are available to Staff+ in every account with Store. Do not send a real test message without authorization or make this check a condition for accepting unrelated process behavior.
 
-Public reference: [Store SDK and staff notifications](https://dev.chatium.ru/app/knowledge/~/framework-chatium/store-sdk/vozmozhnosti-store-sdk.md), [notification settings and the types hook](https://dev.chatium.ru/app/knowledge/~/framework-chatium/store-sdk/nastrojka-uvedomleniy.md). These pages document the three methods and link to their detailed contracts.
+Public reference: [Store SDK and staff notifications](https://dev.chatium.ru/app/knowledge/~/framework-chatium/store-sdk/vozmozhnosti-store-sdk.md), [notification settings and the typed manifest](https://dev.chatium.ru/app/knowledge/~/framework-chatium/store-sdk/nastrojka-uvedomleniy.md). These pages document the declaration, the three methods and their detailed contracts.
