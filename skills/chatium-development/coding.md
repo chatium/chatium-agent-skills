@@ -151,6 +151,14 @@ The build generates Tailwind CSS v3: any `.css` file with a top-level `@tailwind
 - An unknown `@apply` class, a missing or invalid config, or a local `@import` fails that file's build, leaving its pages without Tailwind styles; fix the error before reporting the page ready.
 - Do not load the Tailwind browser script (`tailwind.3.4.16.min.js`, `cdn.tailwindcss.com`) on pages that link an entry.
 
+## Google Fonts
+
+The build bundles Google Fonts into the page and serves them from the account's own domain. It reads the stylesheet URL while building, so write the URL whole:
+
+- In the Tailwind entry: `@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');`, as above.
+- In a page shell: `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" />`, the `href` a string literal or a template of string `const`s declared in the same module.
+- Request only the weights and the italic the design renders (`ital,…@1,400` only when italics show): every style in the URL is preloaded with the page.
+
 ## QR codes
 
 Display a QR image with `<img :src="qrUrl" alt="QR code">`, computing its URL from the current text:
