@@ -110,6 +110,19 @@ onMounted(load)
 
 Server-loaded data can instead be passed as serializable props. For a bounded dataset, add pagination when needed using the application's API and [Heap query limits](heap-filter.md#filters-and-pagination).
 
+Vue components render on the server, then hydrate in the browser, so the first render must be the same in both. Read browser globals (`window`, `document`, `localStorage`, `navigator`, `location`, timers) only in `onMounted`, event handlers and `watch` callbacks without `immediate`, into refs that start from a value the server can render; a `typeof window` check does not make setup code server-safe. Keep `Math.random()` and the current date out of rendered output. A component whose setup, computed values or template-called functions reach a browser global renders in the browser only, and the push names it with a `vue.ssr-excluded` warning and the code to move. Mount a deliberately browser-only component as `<Comp client:only />`.
+
+```vue
+<script setup lang="ts">
+import { onMounted, ref } from 'vue'
+
+const path = ref('')
+onMounted(() => {
+  path.value = window.location.pathname
+})
+</script>
+```
+
 ## Tailwind
 
 The build generates Tailwind CSS v3: any `.css` file with a top-level `@tailwind` directive is an entry, and `<AppCss />` links the generated stylesheet like any CSS module.
