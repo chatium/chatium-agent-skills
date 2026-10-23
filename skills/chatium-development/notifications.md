@@ -21,7 +21,7 @@ The method returns `{ dispatchId, state: 'queued' | 'skipped', eligibleCount, in
 The handler transport adds `handlerCount`, counting scheduled user/handler
 pairs. It does not change the unique-recipient meaning of eligibleCount.
 
-All four channel preferences (`inbox`, `email`, `telegram`, `app`) are enabled by default unless the recipient has changed them. The `inbox` channel is labeled **Notifications** / **Уведомления** in the UI; keep its technical key unchanged. Native app delivery is not implemented yet and its control is hidden; `app` currently stores only a preference. E-mail requires a confirmed staff e-mail address; without one, the notification center still works independently. The sender is `notifications@chatium.ai` on the US cluster and `notifications@chatium.ru` elsewhere. Enqueuing a letter does not prove receipt in the mailbox.
+All four channel preferences (`inbox`, `email`, `telegram`, `app`) are enabled by default, except types declared with `defaultEnabled: false`; explicit recipient choices take precedence. Selected `handlers` arrays are independent of this flag. The `inbox` channel is labeled **Notifications** / **Уведомления** in the UI; keep its technical key unchanged. Native app delivery is not implemented yet and its control is hidden; `app` currently stores only a preference. E-mail requires a confirmed staff e-mail address; without one, the notification center still works independently. The sender is `notifications@chatium.ai` on the US cluster and `notifications@chatium.ru` elsewhere. Enqueuing a letter does not prove receipt in the mailbox.
 
 ### E-mail prerequisites
 
@@ -126,7 +126,14 @@ app.manifest('@store/notification-types', notificationTypesManifest, {
 
 The declaration contains only static data; for build-time restrictions and general SDK declaration rules, read [Manifests](manifests.md). Notification declarations need no RouteRefs.
 
-Pass the object, not `null`, `undefined`, or `{}`. Use optional top-level `items` for a **flat list**, `groups` for collapsible groups, or both. Group/item keys are stable and have the same format as a source key. Item keys must be unique across the entire schema and match the sent `typeKey`. At most 20 groups and 100 types total; a declared group must not be empty. Duplicate source keys in the same caller namespace are invalid; declare distinct keys for separate sources. Without `typeKey`, the send uses `general`. `defaultEnabled: false` is unsupported; omit it or use `true`. Unknown types inherit the source channel settings.
+Pass the object, not `null`, `undefined`, or `{}`. Use optional top-level `items` for a **flat list**, `groups` for collapsible groups, or both. Group/item keys are stable and have the same format as a source key. Item keys must be unique across the entire schema and match the sent `typeKey`. At most 20 groups and 100 types total; a declared group must not be empty. Duplicate source keys in the same caller namespace are invalid; declare distinct keys for separate sources. Without `typeKey`, the send uses `general`. Unknown types inherit the source channel settings.
+
+`defaultEnabled` is an optional boolean on each item, in either the flat list or a
+group. False is supported: the type starts off in all four boolean channels until
+the user enables it, even if the source is generally enabled. True or omission
+uses normal source inheritance. Explicit per-type choices take precedence.
+Enabling a whole source channel also enables its default-disabled types. The
+separate `handlers` ID selection does not use this flag.
 
 Titles accept plain strings or static `t(...)` markers from `@app/i18n`. Store resolves markers for the settings viewer; do not use `ctx.t` inside a manifest. The send API's `source.title` still requires a ready string, e.g. `{ key: 'requests', title: ctx.t('Requests') }`, not the marker tuple.
 
@@ -145,7 +152,7 @@ app.manifest('@store/notification-types', notificationTypesManifest, {
     items: [{
       key: 'request.completed',
       title: t('Completed requests'),
-      defaultEnabled: true
+      defaultEnabled: false // The user explicitly enables this type when wanted.
     }]
   }]
 })
@@ -180,8 +187,8 @@ await updateNotificationSettings(ctx, {
 - The result also includes `handlers` and `handlersUnavailable`, and source/type choices may contain `handlers: string[]`. See [Notification handlers](notification-handlers.md); this selection defaults to `[]`, not true.
 - `updateNotificationSettings(ctx, { sourceKey, channels, typeKeys? })` applies immediately and returns the resulting `{ sourceKey, channels, typeOverrides }`, the same settings used by the UI. `channels` must contain at least one boolean `inbox`/`email`/`telegram`/`app`, or a `handlers` ID array; omitted channels and unrelated sources remain unchanged. `app` does not activate native push delivery yet.
 - Without `typeKeys`, the change applies to the entire source and clears its per-type exceptions **only for the selected channels**, just like the UI's whole-application toggle. With `typeKeys`, it changes only those types, preserving the source defaults and other types. A supplied list must contain 1–100 known type keys; an empty list is an error, not "all". `general` is also supported.
-- To reset one type to inheritance, set its selected channel to the source's value. To reset the whole source to defaults, omit `typeKeys` and set `{ inbox: true, email: true, telegram: true, app: true }`.
-- A full reset also includes `handlers: []`; omitting it preserves programmatic delivery choices.
+- To remove one type's personal boolean exception, use false if its schema says `defaultEnabled: false`, otherwise the source's channel value. For handlers, use the source's array (default `[]`).
+- A source-wide patch with `{ inbox: true, email: true, telegram: true, app: true }` explicitly enables every type, including default-disabled types; it is not a reset to manifest defaults. Add `handlers: []` only to clear programmatic delivery choices; omission preserves them.
 - SDK handler patches from an ordinary plugin are limited to its own notification sources and its own handler namespace. Account code and the user's settings UI may choose any registered provider. Do not subscribe a handler to another application's source from plugin code.
 - Unknown/unavailable sources and unknown types are rejected without changing settings. The SDK does not accept recipient lists or edit another person's preferences. It does not send a test notification or confirm an e-mail address. These settings do not control announcements or native Chat/Sender messages.
 
