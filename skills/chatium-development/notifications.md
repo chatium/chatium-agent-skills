@@ -77,6 +77,11 @@ For user-selected **programmatic delivery** with this data and an explicit
 recipient, see [Notification handlers](notification-handlers.md). That transport
 is preview-only; producers keep calling sendNotification, not a new send method.
 
+In that version, **every recipient-selected handler receives the whole data
+object**, including handlers from a different application/provider. Do not treat
+it as private Feed metadata. Choose metadata appropriate for the intended staff
+recipient and their selected integrations; never include secrets or credentials.
+
 ### Recipient language
 
 Store uses each recipient's profile language, falling back to Russian on the main cluster and English on US. System e-mail/Telegram labels are translated independently of the producer's language. For multilingual event content, optionally supply up to 10 `translations` variants:
@@ -166,6 +171,7 @@ await updateNotificationSettings(ctx, {
 - Without `typeKeys`, the change applies to the entire source and clears its per-type exceptions **only for the selected channels**, just like the UI's whole-application toggle. With `typeKeys`, it changes only those types, preserving the source defaults and other types. A supplied list must contain 1–100 known type keys; an empty list is an error, not "all". `general` is also supported.
 - To reset one type to inheritance, set its selected channel to the source's value. To reset the whole source to defaults, omit `typeKeys` and set `{ inbox: true, email: true, telegram: true, app: true }`.
 - In the handler preview, a full reset also includes `handlers: []`; omitting it preserves programmatic delivery choices.
+- SDK handler patches from an ordinary plugin are limited to its own notification sources and its own handler namespace. Account code and the user's settings UI may choose any registered provider. Do not subscribe a handler to another application's source from plugin code.
 - Unknown/unavailable sources and unknown types are rejected without changing settings. The SDK does not accept recipient lists or edit another person's preferences. It does not send a test notification or confirm an e-mail address. These settings do not control announcements or native Chat/Sender messages.
 
 After a settings change, inspect the returned result or read settings again and tell the user exactly what changed. Do not claim actual mail delivery merely because e-mail was enabled.

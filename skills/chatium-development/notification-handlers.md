@@ -71,7 +71,9 @@ does not create an event source or automatically receive all notifications.
 
 Only at the staff user's explicit request, use `getNotificationSettings(ctx)`:
 `handlers` returns `{ id, title, description?, provider }`, without RouteRefs.
-`handlersUnavailable` indicates discovery trouble: preserve existing selections.
+`handlersUnavailable` means the registry itself could not be read: preserve
+existing selections. One invalid declaration excludes only its own ID, not all
+other handlers.
 Let the user choose known IDs and source/type, then:
 
 ```ts
@@ -88,6 +90,17 @@ opts out. Source-wide patches clear only handler exceptions. The four boolean
 channels keep their defaults and independent settings. New unknown IDs are
 rejected; previously saved removed choices can remain or be cleared. Do not pass
 functions/URLs in preferences or set another user's choices.
+
+For handler patches through the SDK, an ordinary plugin may choose only its own
+handler IDs and only for its own notification sources. Owning a handler alone does
+not authorize subscribing it to another application's events. Account code and
+the user's settings UI may select any registered provider. These restrictions
+apply to the handler selection, not the independent boolean channel preferences.
+
+In the UI's bulk picker, unavailable IDs remain only on source/type scopes where
+they were already selected; they must not propagate to other sources or types.
+The open dialog keeps an unavailable option visible after unchecking it so the
+user can undo that choice before applying.
 
 ## Callback semantics
 
@@ -112,6 +125,11 @@ independent execution budget; a hanging callback cannot block sibling callbacks
 or other notification channels. Native retries cover timeouts, with no more than
 five function executions; retry intervals are platform-managed. Each attempt
 rechecks role/opt-out/registration. Removed handlers are skipped.
+AccessDeniedError, ValidationError and other permanent HTTP 4xx refusals do not
+retry (408/409/425/429 remain retryable). An unrelated invalid declaration must
+not make a removed handler retry: only the selected invalid ID or a registry-wide
+failure is temporary. Callback failures and the final failure reason are logged
+by that handler's job, independently of sibling handlers and standard channels.
 This is not exactly-once: an effect may happen before
 a timeout. Deduplicate your own effect by deliveryId. A fresh sendNotification call,
 even with the same notification.id, produces new delivery IDs.
@@ -119,6 +137,12 @@ even with the same notification.id, produces new delivery IDs.
 `sendNotification.handlerCount` counts scheduled invocations, not confirmed
 execution. Each handler/user pair charges the normal delivery rate limit.
 Handler-only delivery is supported; other channels remain independent.
+
+The whole `data` object is forwarded to each handler selected by the recipient,
+including handlers from another provider. It is not private producer/Feed-only
+metadata. Producers must send only information appropriate for that recipient
+and their chosen integrations, never secrets, credentials or unnecessary personal
+data. Entity IDs still do not grant domain access.
 
 Typecheck against generated SDK declarations. With user permission, verify on a
 test Staff+ profile: catalogue discovery, two selected handlers, source/type
