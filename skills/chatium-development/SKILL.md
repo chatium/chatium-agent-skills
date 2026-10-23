@@ -17,6 +17,8 @@ Before working in a workspace or isolated module, read its `.CHATIUM-LLM.md` if 
 
 ## Notifications for staff and administrators
 
+For **receiving staff notifications in code**, read [Notification handlers](notification-handlers.md): typed static manifests declare app.function destinations; the current staff user explicitly selects them via UI/SDK. It is not a separate producer API or a replacement for `sendNotification`.
+
 When asked to add notifications or alerts for account administrators, employees, or other Staff+ users, read [Notifications](notifications.md) and use `sendNotification` from `@store/sdk`. This is the shared notification mechanism for **any account code, workspace, application, or plugin**, including form handlers, payment callbacks, automation actions, and background jobs. The user does not need to mention Store or choose it as a channel: Store supplies the API; it is not a restriction on where notifications can originate.
 
 Account/workspace notifications require an explicit local `source.key`. Register settings in both account and plugin code with `app.manifest('@store/notification-types', notificationTypesManifest, value)`, importing the typed handle from `@store/sdk`. Declarations are static: no `ctx`, database reads or async code. Plugins may omit the source key; their keys are always namespaced by the plugin. Read the reference for flat/grouped declarations and matching the sent source.

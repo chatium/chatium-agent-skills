@@ -20,7 +20,7 @@ For notification-specific keys, groups, localization and delivery, read [Notific
 
 Declare at module top level. Values are extracted at build time: use static literals, objects, arrays and supported imported constants. There is no `ctx`, request, current user, database access, HTTP request, arbitrary callback, `async` or `await`. Do not calculate the declaration from runtime account data or wrap it in a handler. Updating its static data requires publishing new source.
 
-If the SDK schema accepts a RouteRef, reference an **existing exported `app.function` constant**. Do not declare `app.function(...)` inside manifest data, pass an HTTP route or substitute a callback. The declared function may perform runtime work when called later; the manifest itself does not execute it. Do not invent function fields that the owning schema does not define.
+If the SDK schema accepts a RouteRef, **import an existing exported `app.function` constant from another file**. A same-file local function reference is not supported by the static extractor. Do not declare `app.function(...)` inside manifest data, pass an HTTP route or substitute a callback. The declared function may perform runtime work when called later; the manifest itself does not execute it. Do not invent function fields that the owning schema does not define. [Notification handlers](notification-handlers.md#register-a-destination) provide a two-file example.
 
 ## Define a type in an SDK
 
