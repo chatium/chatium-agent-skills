@@ -107,9 +107,12 @@ not authorization. Never echo an event into the same notification channel withou
 a clear stopping condition.
 
 Any resolved function return counts as success; its value is ignored. Throw for
-retryable failure. Store retries only failed user/handler pairs, at most five
-attempts with 5/30/120/300-second delays, rechecking role/opt-out/registration.
-Removed handlers are skipped. This is not exactly-once: an effect may happen before
+retryable failure. Each user/handler pair runs in its own native job with an
+independent execution budget; a hanging callback cannot block sibling callbacks
+or other notification channels. Native retries cover timeouts, with no more than
+five function executions; retry intervals are platform-managed. Each attempt
+rechecks role/opt-out/registration. Removed handlers are skipped.
+This is not exactly-once: an effect may happen before
 a timeout. Deduplicate your own effect by deliveryId. A fresh sendNotification call,
 even with the same notification.id, produces new delivery IDs.
 
