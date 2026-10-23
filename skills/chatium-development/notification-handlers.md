@@ -5,8 +5,9 @@ not just sending an event. This transport is in Store preview; verify that the
 target SDK provides `notificationHandlersManifest` and `channels.handlers` before
 using it. Do not emulate it with direct Feed/Inbox subscriptions or a custom queue.
 
-The producer still uses `sendNotification` and passes structured event attributes
-in `data` (see [Notifications](notifications.md#event-metadata)). The recipient
+The producer still uses `sendNotification` and passes IDs of related entities
+(such as requestId/formId or paymentId/orderId) and optional event attributes in
+`data` (see [Notifications](notifications.md#event-metadata)). The recipient
 chooses which registered functions to invoke. Registration alone must never
 subscribe staff or change their preferences. This is optional personal delivery,
 not mandatory business processing: staff can turn it off.
@@ -27,7 +28,8 @@ export const receiveNotification = app.function(
       throw new AccessDeniedError('Store only')
     }
     // event.user is the recipient, NOT ctx.user.
-    // Validate your domain permissions and event.notification.data here.
+    // event.notification.data.requestId / formId identify related business records.
+    // Validate these values and domain permissions before loading a record.
     // Deduplicate a consequential side effect by event.deliveryId.
   }
 )
@@ -113,7 +115,11 @@ user can undo that choice before applying.
 - `notification: { id, dispatchId, issuedAt, source, typeKey, title, text, url?, data? }`.
 
 `notification.id` is the producer ID; title/text use the recipient's language
-variant, while data is unchanged JSON metadata. The invocation is background work:
+variant, while data is unchanged JSON metadata carrying the related entity IDs.
+For example, `{ requestId: 'request-42', formId: 'form-7' }` identifies the source
+submission. Field names are producer-defined; validate them before loading records.
+Executable FunctionRouteRefs are not part of this JSON contract; use an agreed
+string action key if needed. The invocation is background work:
 do not require the recipient's session or derive their identity from ctx.user.
 Validate source, type and data before domain-specific actions; arbitrary data is
 not authorization. Never echo an event into the same notification channel without

@@ -52,7 +52,8 @@ const result = await sendNotification(ctx, {
   title: ctx.t('New request'),
   text: ctx.t('A new request is ready for review'),
   url: `/admin/requests/${request.id}`,
-  data: { requestId: request.id, status: 'created' }
+  // IDs of the business records this notification refers to.
+  data: { requestId: request.id, responsibleUserId: responsibleStaffUserId }
 })
 ```
 
@@ -64,10 +65,20 @@ The example works in account code as well as application/plugin server code. Use
 
 ### Event metadata
 
-Optional `data` carries structured notification metadata (exported type
-`NotificationData`): a JSON object with strings, finite numbers, booleans, null,
-nested arrays/objects, up to 16,384 serialized characters. Use it for stable record
-IDs and event attributes instead of encoding them into title/text. Dates are ISO
+Use optional `data` primarily for **IDs of entities related to the notification**:
+`requestId` and `formId` for a submission, `paymentId` and `orderId` for a payment,
+or the relevant task/responsible-user IDs. Use real IDs from saved records. For
+example, `{ requestId: 'request-42', formId: 'form-7' }` lets a receiver load the
+original submission without parsing title/text or URL. These are producer-defined
+fields, not required Store fields. Add event attributes when useful; do not copy
+the full business record into metadata.
+
+The exported `NotificationData` type is a JSON object with strings, finite numbers,
+booleans, null and nested arrays/objects, up to 16,384 serialized characters. If a
+receiver needs an action selector, agree on a string key such as
+`actionKey: 'request.review'` and resolve it in the receiver's code. Do not put an
+executable `FunctionRouteRef` into data: restoring function references is not part
+of this JSON contract. Entity IDs/action keys are not authorization. Dates are ISO
 strings; functions, undefined, BigInt and cycles are unsupported. Metadata stays
 with the notification, is not rendered in e-mail/Telegram text, and is not a place
 for secrets or unnecessary personal data. A same-ID send replaces the whole
