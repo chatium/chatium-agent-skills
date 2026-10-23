@@ -1,9 +1,9 @@
-# Receive staff notifications in code (preview)
+# Receive staff notifications in code
 
 Use this reference when the user wants a programmable notification destination,
-not just sending an event. This transport is in Store preview; verify that the
-target SDK provides `notificationHandlersManifest` and `channels.handlers` before
-using it. Do not emulate it with direct Feed/Inbox subscriptions or a custom queue.
+not just sending an event. Use `notificationHandlersManifest` and
+`channels.handlers` from `@store/sdk`. Do not emulate this transport with direct
+Feed/Inbox subscriptions or a custom queue.
 
 The producer still uses `sendNotification` and passes IDs of related entities
 (such as requestId/formId or paymentId/orderId) and optional event attributes in

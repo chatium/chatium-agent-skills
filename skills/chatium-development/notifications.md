@@ -18,7 +18,7 @@ Chat and Sender already maintain their own notifications. Do not duplicate their
 
 The method returns `{ dispatchId, state: 'queued' | 'skipped', eligibleCount, inboxCount, emailCount, telegramCount, filteredCount, unknownCount }`. `eligibleCount` counts unique recipients with an enabled available channel; the three channel counters count planned deliveries. `queued` means scheduled, not delivered; `skipped` means no eligible recipients remained. It does not promise a native/mobile push.
 
-The preview handler transport adds `handlerCount`, counting scheduled user/handler
+The handler transport adds `handlerCount`, counting scheduled user/handler
 pairs. It does not change the unique-recipient meaning of eligibleCount.
 
 All four channel preferences (`inbox`, `email`, `telegram`, `app`) are enabled by default unless the recipient has changed them. The `inbox` channel is labeled **Notifications** / **Уведомления** in the UI; keep its technical key unchanged. Native app delivery is not implemented yet and its control is hidden; `app` currently stores only a preference. E-mail requires a confirmed staff e-mail address; without one, the notification center still works independently. The sender is `notifications@chatium.ai` on the US cluster and `notifications@chatium.ru` elsewhere. Enqueuing a letter does not prove receipt in the mailbox.
@@ -86,9 +86,9 @@ object; omitting `data` removes previous metadata.
 
 For user-selected **programmatic delivery** with this data and an explicit
 recipient, see [Notification handlers](notification-handlers.md). That transport
-is preview-only; producers keep calling sendNotification, not a new send method.
+uses the same sendNotification producer API, not a new send method.
 
-In that version, **every recipient-selected handler receives the whole data
+With programmatic delivery, **every recipient-selected handler receives the whole data
 object**, including handlers from a different application/provider. Do not treat
 it as private Feed metadata. Choose metadata appropriate for the intended staff
 recipient and their selected integrations; never include secrets or credentials.
@@ -177,11 +177,11 @@ await updateNotificationSettings(ctx, {
 ```
 
 - `getNotificationSettings(ctx)` returns `{ sources, workspaces, schemasUnavailable, telegram }`. Both arrays have the same entry contract: `sourceKey`, title, `channels: { inbox, email, telegram, app }`, per-type `typeOverrides`, and `schema` with `items`/`groups` arrays. `sources` contains plugin sources; `workspaces` contains account sources, not an inferred workspace inventory. Use returned `sourceKey` unchanged in settings calls; use the local `source.key` when sending. If discovery failed, do not assume missing settings were reset.
-- In the handler preview, the result also includes `handlers` and `handlersUnavailable`, and source/type choices may contain `handlers: string[]`. See [Notification handlers](notification-handlers.md); this selection defaults to `[]`, not true.
-- `updateNotificationSettings(ctx, { sourceKey, channels, typeKeys? })` applies immediately and returns the resulting `{ sourceKey, channels, typeOverrides }`, the same settings used by the UI. `channels` must contain at least one boolean `inbox`/`email`/`telegram`/`app`, or, in preview, a `handlers` ID array; omitted channels and unrelated sources remain unchanged. `app` does not activate native push delivery yet.
+- The result also includes `handlers` and `handlersUnavailable`, and source/type choices may contain `handlers: string[]`. See [Notification handlers](notification-handlers.md); this selection defaults to `[]`, not true.
+- `updateNotificationSettings(ctx, { sourceKey, channels, typeKeys? })` applies immediately and returns the resulting `{ sourceKey, channels, typeOverrides }`, the same settings used by the UI. `channels` must contain at least one boolean `inbox`/`email`/`telegram`/`app`, or a `handlers` ID array; omitted channels and unrelated sources remain unchanged. `app` does not activate native push delivery yet.
 - Without `typeKeys`, the change applies to the entire source and clears its per-type exceptions **only for the selected channels**, just like the UI's whole-application toggle. With `typeKeys`, it changes only those types, preserving the source defaults and other types. A supplied list must contain 1–100 known type keys; an empty list is an error, not "all". `general` is also supported.
 - To reset one type to inheritance, set its selected channel to the source's value. To reset the whole source to defaults, omit `typeKeys` and set `{ inbox: true, email: true, telegram: true, app: true }`.
-- In the handler preview, a full reset also includes `handlers: []`; omitting it preserves programmatic delivery choices.
+- A full reset also includes `handlers: []`; omitting it preserves programmatic delivery choices.
 - SDK handler patches from an ordinary plugin are limited to its own notification sources and its own handler namespace. Account code and the user's settings UI may choose any registered provider. Do not subscribe a handler to another application's source from plugin code.
 - Unknown/unavailable sources and unknown types are rejected without changing settings. The SDK does not accept recipient lists or edit another person's preferences. It does not send a test notification or confirm an e-mail address. These settings do not control announcements or native Chat/Sender messages.
 
