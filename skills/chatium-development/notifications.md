@@ -48,7 +48,8 @@ const result = await sendNotification(ctx, {
   typeKey: 'request.created',
   title: ctx.t('New request'),
   text: ctx.t('A new request is ready for review'),
-  url: `/admin/requests/${request.id}`
+  url: `/admin/requests/${request.id}`,
+  data: { requestId: request.id, status: 'created' }
 })
 ```
 
@@ -57,6 +58,17 @@ The example works in account code as well as application/plugin server code. Use
 `recipients` accepts either `{ userIds: string[] }` or `{ accountRoles: ('Staff' | 'Admin' | 'Developer' | 'Owner')[] }`, not both in one call. Select only intended Staff+ recipients; Store also excludes Clients, bots, unknown users, and users without a Staff+ account role even when addressed by ID. This filtering is a safeguard, not permission to pass customer IDs. Prefer a known responsible staff user for a personal task; use roles only when everyone in that role should receive it. Role matching is exact: `['Staff']` does not also mean Admin/Developer/Owner. Explicit input accepts at most 500 IDs; after role expansion and Staff+ filtering, before channel preferences, at most 100 recipients may remain. Above 100 the whole call fails with `STORE_NOTIFICATION_RECIPIENT_LIMIT_EXCEEDED`, not a partial send. The protective source limit is 30 calls and 1000 deliveries per minute (`STORE_NOTIFICATION_RATE_LIMIT_EXCEEDED`); each enabled available channel counts as a delivery. These codes are in the error message, not a promised `error.code` property. Do not split a large audience into batches just to evade these limits; raise a bulk-delivery requirement separately.
 
 `id`, `title`, and `text` are required; `typeKey` and `url` are optional. Without a `typeKey`, Store uses `general`. A URL may be relative or HTTP(S); prefer an in-app route whose handler checks access. Keep the primary workflow's error semantics explicit: a Store dispatch error should not silently duplicate a saved form on retry. Log a non-critical notification failure, or surface it when delivery is an explicit product requirement.
+
+### Event metadata
+
+Optional `data` carries structured notification metadata (exported type
+`NotificationData`): a JSON object with strings, finite numbers, booleans, null,
+nested arrays/objects, up to 16,384 serialized characters. Use it for stable record
+IDs and event attributes instead of encoding them into title/text. Dates are ISO
+strings; functions, undefined, BigInt and cycles are unsupported. Metadata stays
+with the notification, is not rendered in e-mail/Telegram text, and is not a place
+for secrets or unnecessary personal data. A same-ID send replaces the whole
+object; omitting `data` removes previous metadata.
 
 ### Recipient language
 
