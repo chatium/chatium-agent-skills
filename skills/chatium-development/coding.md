@@ -30,8 +30,8 @@ import AppCss from './app.css'
 
 export function Styles() {
   return <>
+    <font-awesome version="6" />
     <AppCss />
-    <link href="/s/static/lib/fontawesome/6.7.2/css/all.min.css" rel="stylesheet" />
   </>
 }
 ```
@@ -187,6 +187,16 @@ The build bundles Google Fonts into the page and serves them from the account's 
 - In the Tailwind entry: `@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');`, as above.
 - In a page shell: `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" />`, the `href` a string literal or a template of string `const`s declared in the same module.
 - Request only the weights and the italic the design renders (`ital,…@1,400` only when italics show): every style in the URL is preloaded with the page.
+
+## FontAwesome
+
+For new pages using FontAwesome, put `<font-awesome version="6" />` in the page's `<head>` (in `Styles`, as above), then write icons as usual: `<i class="fa-solid fa-house"></i>`. The build inlines only the icons the page names. Push summarizes old FontAwesome includes reported by `fontawesome.link`.
+
+- An icon gets its CSS only when its class is written as a complete string in the local `.ts`, `.tsx` or `.vue` modules the page imports, directly or transitively (as with Tailwind). Pick between complete classes: `level === 'warn' ? 'fa-triangle-exclamation' : 'fa-circle-info'`, or a map of complete classes. For icon names that come from data (Heap, settings, a picker), list every possible class in the code, for example in a comment next to `<font-awesome>`.
+- When migrating an existing stylesheet, account for icons supplied by data and external components. Keep the existing stylesheet until their complete set is covered by the scanned code.
+- Use only Free icons of the chosen version (`5`, `6` or `7`; prefer `6`) and one version per page. Pro icons and styles (`fa-light`, `fa-duotone`, `fa-sparkles`) do not render.
+- Investigate push warnings affecting the changed pages: `fontawesome.unknown-icon` may mean a typo, another version, Pro, or an intentional custom class; `fontawesome.dynamic-name` flags names assembled from parts. Fix missing FontAwesome classes and incomplete dynamic-name coverage; preserve custom classes with their own CSS.
+- A component from another account: its account exports a `Styles` with its own `<font-awesome>` from the component's module, and the page renders it in `<head>`; for its Vue component, list the classes it uses in the page's code.
 
 ## QR codes
 

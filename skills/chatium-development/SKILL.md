@@ -44,7 +44,7 @@ For a business event that needs staff action—such as a submitted lead or faile
 | Task | Reference |
 | --- | --- |
 | Show or open a page, letter, letter folder, knowledge article, or automation; present the result of an edit | [preview.md](preview.md) |
-| Create a workspace, build/change Vue UI, style pages with Tailwind, or display a QR code | [coding.md](coding.md) |
+| Create a workspace, build/change Vue UI, work with Tailwind or FontAwesome (including build warnings), or display a QR code | [coding.md](coding.md) |
 | Define an endpoint, navigate, call an API, assign a domain homepage via `.chatiumrc`, or connect an editor | [routing.md](routing.md) |
 | Declare static typed capabilities/settings through an SDK manifest, or define a manifest type in an SDK | [Manifests](manifests.md) |
 | Define/change a table, write records, handle Money or links | [heap.md](heap.md) |
