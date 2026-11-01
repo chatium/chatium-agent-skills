@@ -72,7 +72,7 @@ When using materials already in Vault, resolve the [existing source](vault.md#re
 
 ### AI
 
-Agents run conversations with history and tools; their configuration lives in `*.agent.json` source files. Edit their configuration in source; use the agent SDK to run conversations. Standalone `startCompletion` from `@start/sdk` generates text, JSON or media with callback results.
+Agents run conversations with history and tools; their configuration lives in `*.agent.json` source files. Edit their configuration in source; use the agent SDK to run conversations. Standalone `startCompletion` from `@start/sdk` generates text, JSON or media with callback results; `makeDecision` answers typed questions (yes/no, choice, score, image box) with probabilities in one synchronous call.
 
 | Task | Reference |
 | --- | --- |
@@ -83,6 +83,7 @@ Agents run conversations with history and tools; their configuration lives in `*
 | Route a shared channel to one agent, hand off a customer, or verify routing in preview | [Agent routing and handoff](ai-routing-and-handoff.md) |
 | Receive an agent turn's output in your function via `directOutputTool` | [Agent direct output](ai-agents.md#directoutputtool) |
 | Run standalone generation with callbacks, native tools, images or video | [Generation](ai-generation.md) |
+| Classify, route, score or gate on a yes/no answer, or locate an object in an image, and branch on the result | [Decisions](ai-decision.md) |
 | Create an agent tool, a direct-output function, or tools for `startCompletion` | [Tools](ai-tools.md) |
 
 ### Automations

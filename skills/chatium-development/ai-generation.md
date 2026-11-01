@@ -5,6 +5,8 @@ description: "Use this example if you need to know how: perform ai-generation, a
 
 # Example of using AI generation in your code
 
+When the code only needs a label, a yes/no answer or a score to branch on, use [`makeDecision`](ai-decision.md): one synchronous call with typed probabilities, no callbacks.
+
 You can use API to perform AI generation inside Chatium environment. This example assumes an existing server-side `Generations` table with optional `response`, `error` and `costTokens` fields; import that application's table before using it.
 
 ```typescript
