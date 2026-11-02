@@ -18,6 +18,8 @@ Done when every icon source has a complete coverage strategy or an explicit exce
 
 Replace compatible full stylesheet includes with the contract's tag and selected coverage mode, preserving cascade order. Keep attributes static so the intended subset can be built. Retain icon markup and intentional custom classes; remove redundant old includes on migrated pages.
 
+For Font Awesome 6, existing `fas`, `far` and `fab` remain supported alongside `fa-solid`, `fa-regular` and `fa-brands`; the subset preserves their base styles. Change the stylesheet include first and keep these prefixes. Rename classes only to fix a demonstrated incompatibility with the selected version, not to normalize existing markup to the examples.
+
 Resolve the contract's diagnostics for migrated pages and check style/version pairings, including regular/solid/brands variants and aliases. Verify icons in hidden and interactive states, CMS examples and external components, not just the initial viewport.
 
 Inspect response and network: subset mode emits CSS in the HTML; full mode intentionally retains a cacheable full stylesheet. Both still use font files; this migration does not subset those files. Leave font preload decisions to measured evidence: adding Font Awesome preloads can delay the first paint by competing with CSS.
