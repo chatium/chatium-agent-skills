@@ -1,0 +1,10 @@
+{
+  "name": "chatium-site-measurement-tools",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.19.0" },
+  "dependencies": {
+    "lighthouse": "13.6.0",
+    "puppeteer": "25.16.0"
+  }
+}
