@@ -74,6 +74,25 @@ export function summarize(records, expectedRuns) {
   }));
 }
 
+export function resourceReport(records, out) {
+  const cell = value => String(value ?? 'unavailable')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/[\\`*_[\]|]/g, '\\$&').replace(/[\r\n]+/g, ' ');
+  const lines = ['# Largest resources', '', 'Top 10 resources by transferred bytes for each individual run, not medians. Invalid runs are diagnostic only. Missing byte counts are unavailable, not zero.', ''];
+  for (const record of records) {
+    lines.push(`## ${record.route}/${record.profile}/${record.side}/${record.index}`, '',
+      `Revision: ${cell(record.revision)}. Status: ${record.valid ? 'valid' : `invalid — ${cell(record.error)}`}.`, '');
+    if (!record.resources) { lines.push('Resource data unavailable.', ''); continue; }
+    const resources = JSON.parse(readFileSync(join(out, record.resources), 'utf8'));
+    lines.push(`[Full resource list](${record.resources})`, '', '| URL | Type | Transferred bytes | HTTP status | Cache source |', '|---|---|---:|---:|---|');
+    const largest = [...resources].sort((a, b) => (b.transferBytes ?? -1) - (a.transferBytes ?? -1)).slice(0, 10);
+    for (const item of largest) lines.push(`| ${[item.url, item.type, item.transferBytes, item.status, item.cache].map(cell).join(' | ')} |`);
+    if (!largest.length) lines.push('| No resources recorded | — | — | — | — |');
+    lines.push('');
+  }
+  return lines.join('\n');
+}
+
 async function audit(tools, config, route, profile, side, index, out) {
   const url = targetUrl(route, config[side]);
   const prefix = `${route.name}-${profile}-${side}-${index}`;
@@ -144,12 +163,13 @@ export async function compare(config, out) {
   }
   const summary = summarize(records, config.runs);
   writeFileSync(join(out, 'summary.json'), JSON.stringify(summary, null, 2));
+  writeFileSync(join(out, 'resources.md'), resourceReport(records, out));
   const lines = ['# Lighthouse comparison', '', config.runs < 3 ? 'Diagnostic only: fewer than three runs per version.' : 'Medians and ranges; inspect screenshots, warnings and version evidence before claiming improvement.', '', '| Route/profile/version | Valid runs | Simulated TTFB ms | FCP ms | LCP ms | TBT ms | CLS |', '|---|---:|---:|---:|---:|---:|---:|'];
   for (const [key, value] of Object.entries(summary)) {
     const cell = name => { const s = value.stats[name]; return s ? `${s.median.toFixed(2)} [${s.min.toFixed(2)}–${s.max.toFixed(2)}]` : 'unavailable'; };
     lines.push(`| ${key} | ${value.validRuns}/${value.expectedRuns} | ${['simulatedTtfbMs', 'fcpMs', 'lcpMs', 'tbtMs', 'cls'].map(cell).join(' | ')} |`);
   }
-  lines.push('', '## Resources', '', 'Per-group medians; bytes are transferred bytes, including compressed resources. Inline CSS/JS is part of the HTML, not the external CSS/JS columns.', '', '| Route/profile/version | Requests | Total bytes | CSS bytes | JS bytes | Font bytes | Image bytes | Performance |', '|---|---:|---:|---:|---:|---:|---:|---:|');
+  lines.push('', '## Resources', '', '[Largest resources per run](resources.md): URLs, types, transferred bytes, HTTP status and cache source.', '', 'Per-group medians; bytes are transferred bytes, including compressed resources. Inline CSS/JS is part of the HTML, not the external CSS/JS columns.', '', '| Route/profile/version | Requests | Total bytes | CSS bytes | JS bytes | Font bytes | Image bytes | Performance |', '|---|---:|---:|---:|---:|---:|---:|---:|');
   for (const [key, value] of Object.entries(summary)) {
     const cell = name => value.stats[name] ? Math.round(value.stats[name].median) : 'unavailable';
     lines.push(`| ${key} | ${['requests', 'bytes', 'cssBytes', 'jsBytes', 'fontBytes', 'imageBytes', 'performance'].map(cell).join(' | ')} |`);

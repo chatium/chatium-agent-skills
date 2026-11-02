@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { mkdtempSync, readFileSync, writeFileSync, chmodSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { compare, samePage, summarize, targetUrl, validate, saveScreenshot } from './measure.mjs';
+import { compare, samePage, summarize, targetUrl, validate, saveScreenshot, resourceReport } from './measure.mjs';
 import { selectCache, findChrome } from './setup.mjs';
 
 test('cache selection skips unusable roots and respects an explicit unavailable root', () => {
@@ -48,6 +48,24 @@ const config = url => ({
   baseline: { revision: 'fixture-a', query: { '__chtmPreviewMode__': 'account:baseline' } },
   candidate: { revision: 'fixture-b', query: { '__chtmPreviewMode__': 'account:candidate' } },
   routes: [{ name: 'home', url, baselineHtmlIncludes: ['build-baseline'], candidateHtmlIncludes: ['build-candidate'] }],
+});
+
+test('resource report ranks top ten per run, preserves missing data and escapes table cells', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'perf-resource-report-'));
+  const items = Array.from({ length: 12 }, (_, i) => ({ url: `https://example.test/file-${i}`, type: 'Script', transferBytes: i, status: 200, cache: 'none' }));
+  items.push({ url: 'https://example.test/a|b<script>\nnext', type: 'Image', transferBytes: 100 });
+  writeFileSync(join(dir, 'resources.json'), JSON.stringify(items));
+  const report = resourceReport([
+    { route: 'home', profile: 'mobile', side: 'baseline', index: 1, revision: 'abc', valid: true, resources: 'resources.json' },
+    { route: 'home', profile: 'mobile', side: 'candidate', index: 1, revision: 'def', valid: false, error: 'Wrong page' },
+  ], dir);
+  assert(report.indexOf('a\\|b&lt;script&gt; next') < report.indexOf('file-11'));
+  assert(!report.includes('file-2 |'));
+  assert.equal(report.split('\n').filter(line => line.startsWith('| https://')).length, 10);
+  assert(report.includes('| Image | 100 | unavailable | unavailable |'));
+  assert(report.includes('invalid — Wrong page'));
+  assert(report.includes('Resource data unavailable.'));
+  assert(report.includes('not medians'));
 });
 
 test('preview parameters preserve categories and replace an existing preview', () => {
@@ -107,6 +125,10 @@ test('real Lighthouse reports and wrong-version rejection', { skip: process.env.
     assert(summaryText.includes('CSS bytes | JS bytes | Font bytes | Image bytes'));
     assert(summaryText.includes(`](${runs[0].screenshot})`));
     assert(summaryText.includes(`](${runs[0].resources})`));
+    assert(summaryText.includes('](resources.md)'));
+    const resourceText = readFileSync(join(out, 'resources.md'), 'utf8');
+    for (const run of runs) assert(resourceText.includes(`## ${run.route}/${run.profile}/${run.side}/${run.index}`));
+    assert(resourceText.includes('| Document |'));
     await assert.rejects(compare(c, out), /EEXIST/);
     c.profiles = ['mobile'];
     c.routes[0].candidateHtmlIncludes = ['wrong-build'];
