@@ -1,6 +1,6 @@
 ---
 name: chatium-site-optimization
-description: "Optimize rendering of existing Chatium sites: migrate Tailwind browser scripts and Font Awesome, enable Vue SSR, and bundle Google Fonts. Use for slow first render or related Source Build push warnings."
+description: "Оптимизация рендеринга существующих сайтов Chatium: миграция браузерных скриптов Tailwind и Font Awesome, включение Vue SSR и сборка Google Fonts. Использовать при медленном первом отображении страницы или соответствующих предупреждениях Source Build при push."
 ---
 
 # Site rendering optimization
