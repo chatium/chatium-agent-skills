@@ -5,6 +5,15 @@ import { loadTools } from './setup.mjs';
 
 const metricIds = { fcpMs: 'first-contentful-paint', lcpMs: 'largest-contentful-paint', tbtMs: 'total-blocking-time', cls: 'cumulative-layout-shift', speedIndexMs: 'speed-index', bytes: 'total-byte-weight' };
 
+export function saveScreenshot(data, out, prefix) {
+  if (!data) return null;
+  const match = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/=\s]+)$/.exec(data);
+  if (!match) throw new Error('Unsupported Lighthouse screenshot data URL.');
+  const file = `${prefix}.${match[1] === 'jpeg' ? 'jpg' : match[1]}`;
+  writeFileSync(join(out, file), Buffer.from(match[2], 'base64'));
+  return file;
+}
+
 export function targetUrl(route, version) {
   const url = new URL(route.url);
   for (const [key, value] of Object.entries(version.query || {})) url.searchParams.set(key, value);
@@ -87,6 +96,7 @@ async function audit(tools, config, route, profile, side, index, out) {
     writeFileSync(join(out, `${prefix}.json`), JSON.stringify(lhr, null, 2));
     writeFileSync(join(out, `${prefix}.html`), result.report[1]);
     record.report = `${prefix}.html`;
+    record.screenshot = saveScreenshot(lhr.audits['final-screenshot']?.details?.data, out, prefix);
     record.finalUrl = lhr.finalDisplayedUrl || lhr.finalUrl;
     record.lighthouseVersion = lhr.lighthouseVersion;
     record.settings = lhr.configSettings;
@@ -100,8 +110,13 @@ async function audit(tools, config, route, profile, side, index, out) {
     record.metrics.simulatedTtfbMs = lhr.audits.metrics?.details?.items?.[0]?.timeToFirstByte ?? null;
     record.metrics.performance = lhr.categories.performance.score === null ? null : lhr.categories.performance.score * 100;
     const requests = lhr.audits['network-requests']?.details?.items;
+    record.resources = requests ? `${prefix}.resources.json` : null;
+    if (requests) writeFileSync(join(out, record.resources), JSON.stringify(requests.map(x => ({
+      url: x.url, type: x.resourceType, transferBytes: x.transferSize ?? null,
+      status: x.statusCode, cache: x.cache,
+    })).sort((a, b) => (b.transferBytes || 0) - (a.transferBytes || 0)), null, 2));
     record.metrics.requests = requests?.length ?? null;
-    for (const [name, type] of [['cssBytes', 'Stylesheet'], ['jsBytes', 'Script'], ['fontBytes', 'Font']]) {
+    for (const [name, type] of [['cssBytes', 'Stylesheet'], ['jsBytes', 'Script'], ['fontBytes', 'Font'], ['imageBytes', 'Image']]) {
       record.metrics[name] = requests ? requests.filter(x => x.resourceType === type).reduce((sum, x) => sum + (x.transferSize || 0), 0) : null;
     }
     // Observed server response time is kept separate from simulated paint metrics.
@@ -133,6 +148,17 @@ export async function compare(config, out) {
   for (const [key, value] of Object.entries(summary)) {
     const cell = name => { const s = value.stats[name]; return s ? `${s.median.toFixed(2)} [${s.min.toFixed(2)}–${s.max.toFixed(2)}]` : 'unavailable'; };
     lines.push(`| ${key} | ${value.validRuns}/${value.expectedRuns} | ${['simulatedTtfbMs', 'fcpMs', 'lcpMs', 'tbtMs', 'cls'].map(cell).join(' | ')} |`);
+  }
+  lines.push('', '## Resources', '', 'Per-group medians; bytes are transferred bytes, including compressed resources. Inline CSS/JS is part of the HTML, not the external CSS/JS columns.', '', '| Route/profile/version | Requests | Total bytes | CSS bytes | JS bytes | Font bytes | Image bytes | Performance |', '|---|---:|---:|---:|---:|---:|---:|---:|');
+  for (const [key, value] of Object.entries(summary)) {
+    const cell = name => value.stats[name] ? Math.round(value.stats[name].median) : 'unavailable';
+    lines.push(`| ${key} | ${['requests', 'bytes', 'cssBytes', 'jsBytes', 'fontBytes', 'imageBytes', 'performance'].map(cell).join(' | ')} |`);
+  }
+  lines.push('', '## Run artifacts', '', '| Run | Status | Report | Screenshot | Resources by transfer size |', '|---|---|---|---|---|');
+  for (const record of records) {
+    const link = (label, file) => file ? `[${label}](${file})` : 'unavailable';
+    const status = record.valid ? 'valid' : `invalid: ${(record.error || '').replace(/[|\r\n]/g, ' ')}`;
+    lines.push(`| ${record.route}/${record.profile}/${record.side}/${record.index} | ${status} | ${link('HTML', record.report)} | ${link('Image', record.screenshot)} | ${link('JSON', record.resources)} |`);
   }
   writeFileSync(join(out, 'summary.md'), lines.join('\n') + '\n');
   return records.every(x => x.valid);

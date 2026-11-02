@@ -1,10 +1,47 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync, chmodSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { compare, samePage, summarize, targetUrl, validate } from './measure.mjs';
+import { compare, samePage, summarize, targetUrl, validate, saveScreenshot } from './measure.mjs';
+import { selectCache, findChrome } from './setup.mjs';
+
+test('cache selection skips unusable roots and respects an explicit unavailable root', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'perf-cache-selection-'));
+  const blocked = join(dir, 'not-a-directory');
+  writeFileSync(blocked, 'blocked');
+  const writable = join(dir, 'external-cache');
+  const selected = selectCache([blocked, writable]);
+  assert(selected.startsWith(writable));
+  assert.equal(selectCache([blocked, writable]), selected);
+  assert.throws(() => selectCache([blocked]), /No writable measurement cache/);
+});
+
+test('installed Chromium is discovered without CHROME_PATH and explicit overrides are honored', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'perf-browser-discovery-'));
+  const chromium = join(dir, 'chromium');
+  writeFileSync(chromium, '#!/bin/sh\nexit 0\n');
+  chmodSync(chromium, 0o755);
+  assert.equal(findChrome({ PATH: dir }, []), chromium);
+  assert.equal(findChrome({ CHROME_PATH: chromium, PATH: '' }, []), chromium);
+  assert.throws(() => findChrome({ CHROME_PATH: join(dir, 'absent'), PATH: dir }, []), /not executable/);
+  chmodSync(chromium, 0o644);
+  mkdirSync(join(dir, 'google-chrome'));
+  assert.equal(findChrome({ PATH: dir }, []), undefined);
+});
+
+test('screenshots retain MIME extension and exact decoded bytes', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'perf-screenshots-'));
+  for (const [mime, extension, hex] of [['jpeg', 'jpg', 'ffd8ffe00010'], ['png', 'png', '89504e470d0a1a0a'], ['webp', 'webp', '52494646']]) {
+    const bytes = Buffer.from(hex, 'hex');
+    const file = saveScreenshot(`data:image/${mime};base64,${bytes.toString('base64')}`, dir, mime);
+    assert.equal(file, `${mime}.${extension}`);
+    assert.deepEqual(readFileSync(join(dir, file)), bytes);
+  }
+  assert.equal(saveScreenshot(undefined, dir, 'missing'), null);
+  assert.throws(() => saveScreenshot('data:text/html;base64,AAAA', dir, 'bad'), /Unsupported/);
+});
 
 const config = url => ({
   runs: 1, profiles: ['mobile', 'desktop'],
@@ -59,6 +96,17 @@ test('real Lighthouse reports and wrong-version rejection', { skip: process.env.
     assert(mobile.screenEmulation.width < desktop.screenEmulation.width);
     assert(mobile.throttling.cpuSlowdownMultiplier > desktop.throttling.cpuSlowdownMultiplier);
     assert(runs.every(x => readFileSync(join(out, x.report), 'utf8').includes('lighthouse')));
+    for (const run of runs) {
+      assert.match(run.screenshot, /\.(jpg|png|webp)$/);
+      assert(readFileSync(join(out, run.screenshot)).length > 100);
+      const resources = JSON.parse(readFileSync(join(out, run.resources)));
+      assert(resources.some(x => x.type === 'Document' && x.transferBytes > 0));
+      assert(resources.every((x, i) => i === 0 || resources[i - 1].transferBytes >= x.transferBytes));
+    }
+    const summaryText = readFileSync(join(out, 'summary.md'), 'utf8');
+    assert(summaryText.includes('CSS bytes | JS bytes | Font bytes | Image bytes'));
+    assert(summaryText.includes(`](${runs[0].screenshot})`));
+    assert(summaryText.includes(`](${runs[0].resources})`));
     await assert.rejects(compare(c, out), /EEXIST/);
     c.profiles = ['mobile'];
     c.routes[0].candidateHtmlIncludes = ['wrong-build'];
