@@ -12,6 +12,10 @@ References may be in English or Russian; agents respond in the user's language.
 journeys: discovery, process maps, implementation, independent reviews, testing
 and launch. It uses `chatium-development` for platform SDKs and application code.
 
+[chatium-site-optimization](skills/chatium-site-optimization/SKILL.md) improves existing
+sites through Tailwind and Font Awesome migration, Vue SSR and Google Fonts bundling,
+with preview checks and before/after rendering measurements.
+
 Skills live in `skills/chatium-<name>/SKILL.md`. Each skill has YAML frontmatter
 with a matching `name` and a `description`. Supporting documents and executable
 helpers live beside `SKILL.md` or in its task-specific subdirectories. Topic prefixes such as
