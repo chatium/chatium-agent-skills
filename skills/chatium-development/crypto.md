@@ -10,4 +10,4 @@ export function sha256(value: string) {
 }
 ```
 
-Use the project's available typings for algorithms and input formats. Keep secrets in the platform's secret/config mechanism rather than application source.
+Use the project's available typings for algorithms and input formats. Keep keys and credentials in [`@app/secrets`](secrets.md), never in application source.
