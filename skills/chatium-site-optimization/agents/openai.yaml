@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ускорение сайта"
+  short_description: "Tailwind и Font Awesome на сборке, Vue SSR, Google Fonts"
+  icon_small: "./assets/icon.svg"

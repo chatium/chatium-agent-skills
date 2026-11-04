@@ -1,0 +1,4 @@
+interface:
+  display_name: "Разработка Chatium"
+  short_description: "Страницы, роуты, данные, задачи и интеграции платформы"
+  icon_small: "./assets/icon.svg"

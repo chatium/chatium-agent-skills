@@ -1,6 +1,9 @@
 ---
 name: chatium-development
 description: "Create and edit Chatium account and plugin code: Vue and file-based routes, domain homepages via .chatiumrc, Heap, auth, RBAC permissions and roles, files and Vault, jobs, notifications for staff and administrators, and platform SDK integrations for agents, customer messaging, mailings, automations, payments, analytics, Yandex.Direct and VK Ads, media, CRM, and Google services. Excludes Chatium platform backend development."
+metadata:
+  # Не показывать в меню «/» Chatium Code — навык подключается сам; «/chatium-development» работает.
+  chatium-menu: hidden
 ---
 
 # Chatium development

@@ -17,7 +17,10 @@ sites through Tailwind and Font Awesome migration, Vue SSR and Google Fonts bund
 with preview checks and before/after rendering measurements.
 
 Skills live in `skills/chatium-<name>/SKILL.md`. Each skill has YAML frontmatter
-with a matching `name` and a `description`. Supporting documents and executable
+with a matching `name` and a `description`. `agents/openai.yaml` (Codex format) gives the menu
+label, short description and `assets/icon.svg` icon shown by Codex and Chatium Code;
+`metadata: { chatium-menu: hidden }` in the frontmatter keeps a skill out of the
+Chatium Code `/` menu while `/name` still invokes it. Supporting documents and executable
 helpers live beside `SKILL.md` or in its task-specific subdirectories. Topic prefixes such as
 `google-` and `sender-` identify related articles. Skill directories contain regular
 files without symlinks.

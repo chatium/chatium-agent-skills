@@ -1,0 +1,4 @@
+interface:
+  display_name: "База знаний"
+  short_description: "Статьи и разделы базы знаний аккаунта"
+  icon_small: "./assets/icon.svg"
