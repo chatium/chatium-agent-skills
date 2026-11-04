@@ -10,6 +10,7 @@ Use `@app/auth` to enforce access before protected reads or mutations. A page or
 | Intentionally support anonymous user-owned data | `await requireAnyUser(ctx)` returns or creates a user/session |
 | Require a minimum account role | `requireAccountRole(ctx, 'Staff')` or `'Admin'` |
 | Follow workspace/file permissions | `app.use(checkFilePermissions())`, importing the middleware from `@app/auth` |
+| Require an application-defined permission | `requirePermission(ctx, perm)` from `@app/rbac`; see [RBAC](rbac.md) |
 | Decide whether to show a control | `ctx.user?.is('Staff')` or `.is('Admin')` |
 
 Account roles are `None`, `Staff`, `Admin`, `Developer`, and `Owner`; user types are `Anonymous`, `Real`, and `Bot`. The presence of `ctx.user` alone does not establish a real sign-in. Derive ownership from the authenticated user; client-supplied IDs or roles are not authority.
@@ -36,7 +37,7 @@ export const profileSaveRoute = app.post('/')
   })
 ```
 
-Use `updateExtendedInfo` for supported system fields, including names and image metadata. System profile fields, confirmed identities, account role, and user type already belong to the platform user. Store only additional application fields in an application table. Self-service updates always target the current user; application roles need their own protected authorization policy.
+Use `updateExtendedInfo` for supported system fields, including names and image metadata. System profile fields, confirmed identities, account role, and user type already belong to the platform user. Store only additional application fields in an application table. Self-service updates always target the current user; application roles belong to [RBAC](rbac.md), not to profile fields.
 
 Display confirmed contacts through `ctx.user.confirmedPhone` and `ctx.user.confirmedEmail`. Contact changes and confirmation belong to the identity/authentication flow, not `updateExtendedInfo` or an ordinary profile form.
 

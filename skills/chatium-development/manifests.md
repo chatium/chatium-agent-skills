@@ -4,7 +4,7 @@ Use a manifest when an SDK asks account code or a plugin to declare static capab
 
 ## Declare against the SDK's type
 
-Import the manifest handle from the owning SDK and pass it as the second argument. Keep the manifest name a literal string matching that handle:
+Import the manifest handle from the owning SDK and pass it as the second argument. Keep the manifest name a literal string matching that handle (platform types such as `rbac` take a bare name and no handle; see [RBAC](rbac.md#declare-permissions-and-roles)):
 
 ```ts
 import { notificationTypesManifest } from '@store/sdk'

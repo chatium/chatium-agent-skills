@@ -1,6 +1,6 @@
 ---
 name: chatium-development
-description: "Create and edit Chatium account and plugin code: Vue and file-based routes, domain homepages via .chatiumrc, Heap, auth, files and Vault, jobs, notifications for staff and administrators, and platform SDK integrations for agents, customer messaging, mailings, automations, payments, analytics, Yandex.Direct and VK Ads, media, CRM, and Google services. Excludes Chatium platform backend development."
+description: "Create and edit Chatium account and plugin code: Vue and file-based routes, domain homepages via .chatiumrc, Heap, auth, RBAC permissions and roles, files and Vault, jobs, notifications for staff and administrators, and platform SDK integrations for agents, customer messaging, mailings, automations, payments, analytics, Yandex.Direct and VK Ads, media, CRM, and Google services. Excludes Chatium platform backend development."
 ---
 
 # Chatium development
@@ -50,6 +50,7 @@ For a business event that needs staff action—such as a submitted lead or faile
 | Define/change a table, write records, handle Money or links | [heap.md](heap.md) |
 | Filter, paginate, search, aggregate, or batch-load records | [heap-filter.md](heap-filter.md) |
 | Enforce access, authenticate, or work with profiles/users | [auth.md](auth.md) |
+| Declare application permissions and roles, check a permission, or manage role assignments and custom roles | [RBAC](rbac.md) |
 | Upload, download, read or create a file, obtain file URLs, or use `@app/storage` | [storage.md](storage.md) |
 | Work with «Хранилище», «Файловое хранилище», «Мой диск» / Vault: find/reuse existing materials, folders and their settings/covers, registered files, public folder links, or a file picker | [vault.md](vault.md) |
 | Schedule or cancel background work | [jobs.md](jobs.md) |
