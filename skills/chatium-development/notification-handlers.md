@@ -71,7 +71,7 @@ does not create an event source or automatically receive all notifications.
 
 ## Select for the current user
 
-Only at the staff user's explicit request, use `getNotificationSettings(ctx)`:
+Only at the staff user's explicit request, from account/Workspace code under their real Staff+ context, use `getNotificationSettings(ctx)`. Plugins can declare handlers and send notifications, but cannot call the settings SDK, even for their own provider. Role selection and reset follow [personal and role settings](notifications.md#configure-personal-and-role-settings):
 `handlers` returns `{ id, title, description?, provider }`, without RouteRefs.
 `handlersUnavailable` means the registry itself could not be read: preserve
 existing selections. One invalid declaration excludes only its own ID, not all
@@ -93,11 +93,10 @@ channels keep their defaults and independent settings. New unknown IDs are
 rejected; previously saved removed choices can remain or be cleared. Do not pass
 functions/URLs in preferences or set another user's choices.
 
-For handler patches through the SDK, an ordinary plugin may choose only its own
-handler IDs and only for its own notification sources. Owning a handler alone does
-not authorize subscribing it to another application's events. Account code and
-the user's settings UI may select any registered provider. These restrictions
-apply to the handler selection, not the independent boolean channel preferences.
+Account code and the user's settings UI may select any registered provider.
+Plugins cannot read, update or reset preferences through the settings SDK,
+including their own handlers and sources. Declaring a handler does not grant
+settings access. This restriction applies to boolean channels as well.
 
 In the UI's bulk picker, unavailable IDs remain only on source/type scopes where
 they were already selected; they must not propagate to other sources or types.
@@ -128,9 +127,11 @@ a clear stopping condition.
 Any resolved function return counts as success; its value is ignored. Throw for
 retryable failure. Each user/handler pair runs in its own native job with an
 independent execution budget; a hanging callback cannot block sibling callbacks
-or other notification channels. Native retries cover timeouts, with no more than
-five function executions; retry intervals are platform-managed. Each attempt
-rechecks role/opt-out/registration. Removed handlers are skipped.
+or other notification channels. Automatic platform retries are disabled.
+Transient callback failures may schedule explicit retries, with no more than
+five function executions. A timeout/crash without a handled response stops that
+delivery instead of restarting indefinitely. Each attempt rechecks
+role/opt-out/registration. Removed handlers are skipped.
 AccessDeniedError, ValidationError and other permanent HTTP 4xx refusals do not
 retry (408/409/425/429 remain retryable). An unrelated invalid declaration must
 not make a removed handler retry: only the selected invalid ID or a registry-wide

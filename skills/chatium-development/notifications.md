@@ -158,12 +158,12 @@ app.manifest('@store/notification-types', notificationTypesManifest, {
 })
 ```
 
-## Change the current user's settings
+## Configure personal and role settings
 
-Use these server-side `@store/sdk` methods **only at the user's explicit request**. Do not opt users in or out as a hidden part of implementing a form or sending a notification. Both methods require the authenticated real Staff+ user's context in the current account. There is no target `userId` or `accountId`; Clients, bots and anonymous contexts are rejected. An agent tool must retain the requesting human's authorized context, not construct or impersonate one.
+Use these server-side `@store/sdk` methods **only at the user's explicit request, from account/Workspace code**. Plugins are rejected by the server, including calls for their own source and calls under an Owner's context. Do not opt users in or out as a hidden part of implementing a form or sending a notification. All three settings methods require an authenticated real Staff+ user's context in the current account. There is no target `userId` or `accountId`; clients, bots and anonymous contexts are rejected. An agent tool must retain the requesting human's authorized context, not construct or impersonate one. `sendNotification` and manifest registration are still available in plugins.
 
 ```ts
-import { getNotificationSettings, updateNotificationSettings } from '@store/sdk'
+import { getNotificationSettings, updateNotificationSettings, resetNotificationSettings } from '@store/sdk'
 
 const settings = await getNotificationSettings(ctx)
 // Inspect settings.sources for application keys, titles, schemas and choices;
@@ -181,19 +181,35 @@ await updateNotificationSettings(ctx, {
   typeKeys: ['payment.refunded'], // Use keys from the returned schema.
   channels: { email: true }
 })
+
+// Administrator asks: "Disable Pay e-mails by default for Staff."
+const profile = { scope: 'role', role: 'Staff' } as const
+const staffSettings = await getNotificationSettings(ctx, { profile })
+await updateNotificationSettings(ctx, {
+  profile, sourceKey: 'app:pay', channels: { email: false }
+})
+
+// Current user asks to follow their role again for this source.
+await resetNotificationSettings(ctx, { sourceKey: 'app:pay' })
+// Administrator asks to restore platform defaults for this role/source.
+await resetNotificationSettings(ctx, { profile, sourceKey: 'app:pay' })
 ```
 
-- `getNotificationSettings(ctx)` returns `{ sources, workspaces, schemasUnavailable, telegram }`. Both arrays have the same entry contract: `sourceKey`, title, `channels: { inbox, email, telegram, app }`, per-type `typeOverrides`, and `schema` with `items`/`groups` arrays. `sources` contains plugin sources; `workspaces` contains account sources, not an inferred workspace inventory. Use returned `sourceKey` unchanged in settings calls; use the local `source.key` when sending. If discovery failed, do not assume missing settings were reset.
+- `getNotificationSettings(ctx, { profile? }?)` returns `{ sources, workspaces, schemasUnavailable, telegram, profile }`. Both arrays have the same entry contract: `sourceKey`, title, `channels: { inbox, email, telegram, app }`, per-type `typeOverrides`, and `schema` with `items`/`groups` arrays. `sources` contains plugin sources; `workspaces` contains account sources, not an inferred workspace inventory. Use returned `sourceKey` unchanged in settings calls; use the local `source.key` when sending. If discovery failed, do not assume missing settings were reset.
 - The result also includes `handlers` and `handlersUnavailable`, and source/type choices may contain `handlers: string[]`. See [Notification handlers](notification-handlers.md); this selection defaults to `[]`, not true.
-- `updateNotificationSettings(ctx, { sourceKey, channels, typeKeys? })` applies immediately and returns the resulting `{ sourceKey, channels, typeOverrides }`, the same settings used by the UI. `channels` must contain at least one boolean `inbox`/`email`/`telegram`/`app`, or a `handlers` ID array; omitted channels and unrelated sources remain unchanged. `app` does not activate native push delivery yet.
+- `updateNotificationSettings(ctx, { sourceKey, channels, typeKeys?, profile? })` applies immediately and returns the resulting `{ sourceKey, channels, typeOverrides }`, the same settings used by the UI. `channels` must contain at least one boolean `inbox`/`email`/`telegram`/`app`, or a `handlers` ID array; omitted channels and unrelated sources remain unchanged. `app` does not activate native push delivery yet.
+- Omit `profile` (or use `{ scope: 'user' }`) for personal settings. `{ scope: 'role', role }` selects defaults for the exact system role: Admin may configure Admin/Staff, Developer may also configure Developer, Owner may configure all four Staff+ roles. Staff may configure only themselves. These are system roles, not custom RBAC role IDs. Read `settings.profile.editableRoles` rather than guessing permissions.
+- Priority is the personal choice for the whole source → defaults for the user's exact role → platform/manifest defaults. A first personal patch starts from effective role settings and preserves the complete source choice; later role changes do not replace that personal choice. It does not change recipients or override a personal opt-out.
+- `resetNotificationSettings(ctx, { sourceKey, profile? })` resets only that source and returns the complete refreshed settings model. Personal reset restores role inheritance; role reset restores platform/manifest defaults. It preserves other sources, messages and confirmed contacts. Use this method to restore inheritance; setting every channel to true is not a reset. To reset several sources, explicitly select them and call once per source.
+- `settings.profile` includes `target`, `ownRole`, `editableRoles`, and `customizedSourceKeys`. Each source has `settingsOrigin` (`personal`/`role`/`default`), `inheritedOrigin` and `inherited`. Role responses omit personal Telegram connection information; role settings cannot connect anyone's e-mail or Telegram.
 - Without `typeKeys`, the change applies to the entire source and clears its per-type exceptions **only for the selected channels**, just like the UI's whole-application toggle. With `typeKeys`, it changes only those types, preserving the source defaults and other types. A supplied list must contain 1–100 known type keys; an empty list is an error, not "all". `general` is also supported.
 - To remove one type's personal boolean exception, use false if its schema says `defaultEnabled: false`, otherwise the source's channel value. For handlers, use the source's array (default `[]`).
 - A source-wide patch with `{ inbox: true, email: true, telegram: true, app: true }` explicitly enables every type, including default-disabled types; it is not a reset to manifest defaults. Add `handlers: []` only to clear programmatic delivery choices; omission preserves them.
-- SDK handler patches from an ordinary plugin are limited to its own notification sources and its own handler namespace. Account code and the user's settings UI may choose any registered provider. Do not subscribe a handler to another application's source from plugin code.
+- Account code and the user's settings UI may choose any registered handler provider. Plugins cannot read, update or reset preferences through this SDK; registering a handler never grants it settings access.
 - Unknown/unavailable sources and unknown types are rejected without changing settings. The SDK does not accept recipient lists or edit another person's preferences. It does not send a test notification or confirm an e-mail address. These settings do not control announcements or native Chat/Sender messages.
 
 After a settings change, inspect the returned result or read settings again and tell the user exactly what changed. Do not claim actual mail delivery merely because e-mail was enabled.
 
 Before claiming the notification integration works, typecheck it with the current `@store/sdk` typings. With permission, send one event to an agreed test staff recipient and check their notification center and/or mailbox: `queued` alone does not prove receipt. Notifications are available to Staff+ in every account with Store. Do not send a real test message without authorization or make this check a condition for accepting unrelated process behavior.
 
-Public reference: [Store SDK and staff notifications](https://dev.chatium.ru/app/knowledge/~/framework-chatium/store-sdk/vozmozhnosti-store-sdk.md), [notification settings and the typed manifest](https://dev.chatium.ru/app/knowledge/~/framework-chatium/store-sdk/nastrojka-uvedomleniy.md). These pages document the declaration, the three methods and their detailed contracts.
+Public reference: [Store SDK and staff notifications](https://dev.chatium.ru/app/knowledge/~/framework-chatium/store-sdk/vozmozhnosti-store-sdk.md), [notification settings and the typed manifest](https://dev.chatium.ru/app/knowledge/~/framework-chatium/store-sdk/nastrojka-uvedomleniy.md). These pages document the declaration, sending, and personal/role settings methods.
