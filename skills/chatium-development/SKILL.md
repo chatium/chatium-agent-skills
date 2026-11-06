@@ -60,6 +60,7 @@ For a business event that needs staff action—such as a submitted lead or faile
 | Inspect deployed data, debug server code, or seed data | [exec.md](exec.md) |
 | Read platform account logs | [Account logs](account-logs.md) |
 | Inspect Store plugin permissions or install a plugin through `chatium exec` | [Store plugin installation](store-plugin-install.md) |
+| Read or customize the left menu for the current user, a particular employee, or an account role through code / `chatium exec` | [Menu settings](menu-settings.md) |
 | Add notifications/alerts for administrators or employees from any account/application code, or read/change the current staff user's delivery preferences at their request | [Notifications](notifications.md) |
 
 ## Specialized references
