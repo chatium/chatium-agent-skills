@@ -16,6 +16,10 @@ and launch. It uses `chatium-development` for platform SDKs and application code
 sites through Tailwind and Font Awesome migration, Vue SSR and Google Fonts bundling,
 with preview checks and before/after rendering measurements.
 
+[chatium-domain-email](skills/chatium-domain-email/SKILL.md) connects account domains
+and Chatium Email through the public SDKs, preserves existing DNS/mail services,
+and verifies HTTPS, DNS, transport and mailbox readiness separately from test-message delivery.
+
 Skills live in `skills/chatium-<name>/SKILL.md`. Each skill has YAML frontmatter
 with a matching `name` and a `description`. `agents/openai.yaml` (Codex format) gives the menu
 label, short description and `assets/icon.svg` icon shown by Codex and Chatium Code;

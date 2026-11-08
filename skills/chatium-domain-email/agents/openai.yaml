@@ -1,0 +1,4 @@
+interface:
+  display_name: "Подключить домен и почту"
+  short_description: "Домен, DNS, HTTPS и почта с проверкой подключения"
+  icon_small: "./assets/icon.svg"
