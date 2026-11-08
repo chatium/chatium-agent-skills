@@ -80,39 +80,39 @@ DNS-проверки: явно сообщи пробел и получи дан�
 проверь сохранность остальных RRset; для переноса зоны — всех заранее согласованных
 сервисов. Неполная проверка существующей почты остаётся отмеченной в результате.
 
-## Веб-почта и доступ к ящику
+## Почта и доступ к ящику
 
 Если пользователь настраивает ящик, дополнительно выполни этот блок после
-[включения веб-почты](email.md#включи-веб-почту-аккаунта). Предыдущий
+[включения почты](email.md#включи-почту-аккаунта). Предыдущий
 `configurationVerified` относится только к транспорту и DNS.
 
 ```ts
-import { getEmailWebmailState, listEmailMailboxes } from '@email/sdk'
+import { getEmailState, listEmailMailboxes } from '@email/sdk'
 
 const domain = 'example.com'
 const transportId = 'TRANSPORT_ID'
 const mailbox = 'support@example.com'
-const result = await getEmailWebmailState(ctx)
-if (!result.success) return { phase: 'webmail', result }
+const result = await getEmailState(ctx)
+if (!result.success) return { phase: 'email', result }
 const boxes = await listEmailMailboxes(ctx, { transportId })
 if (!boxes.success) return { phase: 'mailboxes', result: boxes }
-const webmail = result.webmail
+const state = result.state
 const matches = (box: { address: string; domain: string; kind: string; active: boolean }) =>
   box.address === mailbox && box.domain === domain && box.kind === 'shared' && box.active === true
 return {
   checkedAt: new Date().toISOString(), accountId: ctx.account.id, transportId, mailbox,
-  webmail, mailboxes: boxes.mailboxes,
-  webmailVerified:
-    webmail.accountId === ctx.account.id && webmail.enabled === true &&
-    webmail.domains.includes(domain) && webmail.mailboxes.some(matches) && boxes.mailboxes.some(matches),
+  state, mailboxes: boxes.mailboxes,
+  mailAccessVerified:
+    state.accountId === ctx.account.id && state.enabled === true &&
+    state.domains.includes(domain) && state.mailboxes.some(matches) && boxes.mailboxes.some(matches),
 }
 ```
 
-`listEmailMailboxes` подтверждает существование ящика в CES, а список `webmail.mailboxes`
-подтверждает доступность в веб-почте текущего администратора. `enabled:true` с пустым
+`listEmailMailboxes` подтверждает существование ящика в CES, а список `state.mailboxes`
+подтверждает доступность в почте текущего администратора. `enabled:true` с пустым
 списком или другим адресом недостаточно. Ошибка чтения оставляет доступ неизвестным.
 При доступном браузере открой `/app/email` и проверь выбранный ящик; экран
-«Включите почту» означает незавершённую настройку веб-почты даже при зелёных DNS.
+«Включите почту» означает незавершённую настройку почты даже при зелёных DNS.
 При старой версии SDK используй проверку через интерфейс из сценария Email.
 
 ## Обмен тестовыми письмами
@@ -169,7 +169,7 @@ return await getEmailMailboxSubmission(ctx, { ...ref, messageId: result.submissi
 | --- | --- |
 | Сайт на домене | Привязка к нужному аккаунту, выбранная DNS-схема, готовый управляемый сертификат либо проверенный внешний TLS, ожидаемая HTTPS-страница |
 | Исходящая почта | Нужный `from`, активный транспорт, свежие `connected:true` и `ready:true`, DNS-проверки; default — только если менялся |
-| Общий ящик в Email | Готовое подключение, inbound MX, активный ящик в CES, включённая веб-почта аккаунта и доступность в ней нужного ящика |
+| Общий ящик в Email | Готовое подключение, inbound MX, активный ящик в CES, включённая почта аккаунта и доступность в ней нужного ящика |
 | Тест отправки/приёма | Результат согласованного теста по конкретному письму в нужном направлении |
 
 При ожидании DNS/сертификата назови фактический статус и оставшиеся записи. При ошибке
