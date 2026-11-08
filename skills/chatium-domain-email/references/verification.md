@@ -87,28 +87,28 @@ DNS-проверки: явно сообщи пробел и получи дан�
 `configurationVerified` относится только к транспорту и DNS.
 
 ```ts
-import { getEmailWorkspaceState, listEmailMailboxes } from '@email/sdk'
+import { getEmailWebmailState, listEmailMailboxes } from '@email/sdk'
 
 const domain = 'example.com'
 const transportId = 'TRANSPORT_ID'
 const mailbox = 'support@example.com'
-const result = await getEmailWorkspaceState(ctx)
-if (!result.success) return { phase: 'workspace', result }
+const result = await getEmailWebmailState(ctx)
+if (!result.success) return { phase: 'webmail', result }
 const boxes = await listEmailMailboxes(ctx, { transportId })
 if (!boxes.success) return { phase: 'mailboxes', result: boxes }
-const workspace = result.workspace
+const webmail = result.webmail
 const matches = (box: { address: string; domain: string; kind: string; active: boolean }) =>
   box.address === mailbox && box.domain === domain && box.kind === 'shared' && box.active === true
 return {
   checkedAt: new Date().toISOString(), accountId: ctx.account.id, transportId, mailbox,
-  workspace, mailboxes: boxes.mailboxes,
+  webmail, mailboxes: boxes.mailboxes,
   webmailVerified:
-    workspace.accountId === ctx.account.id && workspace.enabled === true &&
-    workspace.domains.includes(domain) && workspace.mailboxes.some(matches) && boxes.mailboxes.some(matches),
+    webmail.accountId === ctx.account.id && webmail.enabled === true &&
+    webmail.domains.includes(domain) && webmail.mailboxes.some(matches) && boxes.mailboxes.some(matches),
 }
 ```
 
-`listEmailMailboxes` подтверждает существование ящика в CES, а список `workspace.mailboxes`
+`listEmailMailboxes` подтверждает существование ящика в CES, а список `webmail.mailboxes`
 подтверждает доступность в веб-почте текущего администратора. `enabled:true` с пустым
 списком или другим адресом недостаточно. Ошибка чтения оставляет доступ неизвестным.
 При доступном браузере открой `/app/email` и проверь выбранный ящик; экран

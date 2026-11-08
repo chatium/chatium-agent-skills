@@ -35,9 +35,9 @@ const sdk = await import('@email/sdk')
 return {
   accountId: ctx.account.id,
   accountName: ctx.account.name,
-  workspaceApi: {
-    getEmailWorkspaceState: typeof Reflect.get(sdk, 'getEmailWorkspaceState') === 'function',
-    enableEmailWorkspace: typeof Reflect.get(sdk, 'enableEmailWorkspace') === 'function',
+  webmailApi: {
+    getEmailWebmailState: typeof Reflect.get(sdk, 'getEmailWebmailState') === 'function',
+    enableEmailWebmail: typeof Reflect.get(sdk, 'enableEmailWebmail') === 'function',
   },
   domains: await sdk.listEmailDomains(ctx),
   transports: await sdk.listEmailTransports(ctx),
@@ -162,19 +162,19 @@ return await listEmailMailboxes(ctx, { transportId })
 Они сами по себе не включают доступ аккаунта к веб-почте. Поэтому созданный активный
 ящик может одновременно существовать с экраном «Почта не включена».
 
-Прочитай `getEmailWorkspaceState(ctx)`: результат содержит `success` и `workspace`
+Прочитай `getEmailWebmailState(ctx)`: результат содержит `success` и `webmail`
 с `accountId`, `enabled`, `domains`, `mailboxes`. Это проверка теми же учётными данными
 и с теми же правилами видимости, что использует интерфейс; секреты и письма не возвращаются.
 
-Если нужен ящик и `workspace.enabled === false`, вызови `enableEmailWorkspace(ctx)`.
+Если нужен ящик и `webmail.enabled === false`, вызови `enableEmailWebmail(ctx)`.
 Это отдельное идемпотентное включение веб-почты аккаунта — та же операция, что кнопка
 «Включить почту». Она не создаёт адресов, не меняет DNS/транспорт и не отправляет писем.
-Затем заново вызови `getEmailWorkspaceState`: нужны `enabled:true`, правильный аккаунт
+Затем заново вызови `getEmailWebmailState`: нужны `enabled:true`, правильный аккаунт
 и запрошенный активный ящик в доступном списке. Пустой список после включения требует
 создания отсутствующего адреса или разбора доступа к уже существующему; пересоздание
 активного ящика в CES не исправляет права чтения.
 
-Если базовые методы работают, а `workspaceApi` показывает отсутствие этих экспортов,
+Если базовые методы работают, а `webmailApi` показывает отсутствие этих экспортов,
 сообщи, что в текущем серверном SDK они недоступны. Количество экспортов и версия
 файла скилла не определяют номер версии Email. Новые методы становятся доступны
 после публикации приложения Email; произвольный поиск «обновления приложения» через
