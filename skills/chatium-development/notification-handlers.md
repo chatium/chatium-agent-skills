@@ -71,7 +71,7 @@ does not create an event source or automatically receive all notifications.
 
 ## Select for the current user
 
-Only at the staff user's explicit request, from account/Workspace code under their real Staff+ context, use `getNotificationSettings(ctx)`. Plugins can declare handlers and send notifications, but cannot call the settings SDK, even for their own provider. Role selection and reset follow [personal and role settings](notifications.md#configure-personal-and-role-settings):
+Only at the staff user's explicit request, from account/Workspace code under their real Staff+ context, use `getNotificationSettings(ctx)`. Plugins can declare handlers and send notifications, but cannot call the settings SDK, even for their own provider. Authorized employee selection, system/custom role profiles and reset follow [personal and role settings](notifications.md#configure-personal-and-role-settings):
 `handlers` returns `{ id, title, description?, provider }`, without RouteRefs.
 `handlersUnavailable` means the registry itself could not be read: preserve
 existing selections. One invalid declaration excludes only its own ID, not all
