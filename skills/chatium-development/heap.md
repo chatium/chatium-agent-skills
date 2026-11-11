@@ -38,9 +38,11 @@ Each method takes `ctx` first. IDs are strings; handler input placement follows 
 | `Table.findById(ctx, id)` | Row or `null` |
 | `Table.getById(ctx, id)` | Row; throws if missing |
 | `Table.findOneBy(ctx, where)` | Matching row or `null` |
-| `Table.findAll(ctx, options)` | Bounded list |
+| `Table.findAll(ctx, { where, limit, offset, order })` | Bounded list; the filter key is `where` |
+| `Table.countBy(ctx, where)` | Number of matching rows |
 | `Table.update(ctx, { id, ...patch })` | Updated row; throws if missing |
 | `Table.delete(ctx, id)` | Deleted row or `null` |
+| `Table.deleteAll(ctx, { where, limit })` | Number of deleted rows |
 | `Table.createOrUpdateBy(ctx, key, fields)` | Matched or created row |
 
 Enforce [access checks](auth.md#access-checks) before protected reads and writes. Keep explicit creation and editing separate as described in the [editing flow](routing.md#editing-flow).
