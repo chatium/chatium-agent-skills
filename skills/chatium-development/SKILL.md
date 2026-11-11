@@ -10,6 +10,8 @@ metadata:
 
 Work on the requested account or plugin behavior in its existing source. Respond in the user's language. The references contain development conventions as well as platform API details; examples demonstrate mechanisms, not a required project structure.
 
+Chatium platform support: [support@chatium.ru](mailto:support@chatium.ru).
+
 ## Scope gate: ask before inspecting
 
 **First action after loading this skill for an ambiguous new task:** ask one concise question that identifies the project, source of the action, or recipient list. Then wait. Until the answer, do not list or read repository files, business knowledge, or live account data, and do not run `chatium exec`. You may read general platform references and explain the general mechanism. For “send one email to existing customers,” ask where the recipient list comes from; do not inspect the current branch or Sender first. For “tag new leads,” ask which lead source or project is meant. A current branch, one visible process, and generic words like “lead” are not confirmation.
