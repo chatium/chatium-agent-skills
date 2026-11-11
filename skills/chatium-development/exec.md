@@ -9,7 +9,8 @@ Use `chatium exec` to inspect deployed account data, debug server code, or perfo
 - Treat a dirty-checkout warning as proof that the run did not test staged, unstaged, untracked, or dirty-submodule changes. Runtime verification of local edits starts only when their exact commit has a successful Source Build.
 - Run from the directory that should own the snippet. Relative imports resolve from the current directory; `/module` resolves from the account root.
 - Start with reads. Run a seed or other mutation only when the user's request authorizes changing account data.
-- Exec runs read-only: Heap writes fail. Add `--write` only for a mutation the user authorized; read-only does not stop HTTP requests, jobs or other side effects.
+- Exec runs read-only: writes to Heap and platform data (users, identities, account settings) fail. Add `--write` only for a mutation the user authorized; read-only does not stop outbound HTTP requests, messages or other side effects outside the databases.
+- Filter platform lists such as `findIdentities`, `findAsapJobs` or `findApps` with `where` too; unknown option keys fail the run.
 - Exec type-checks the snippet against the checkout and refuses to run on type errors. If it reports missing typings, run `chatium get-typings`. Fix the error; never cast around it with `as any`.
 
 ## Snippet contract
