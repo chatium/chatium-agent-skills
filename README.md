@@ -20,6 +20,10 @@ with preview checks and before/after rendering measurements.
 and Chatium Email through the public SDKs, preserves existing DNS/mail services,
 and verifies HTTPS, DNS, transport and mailbox readiness separately from test-message delivery.
 
+[chatium-creators](skills/chatium-creators/SKILL.md) guides creator onboarding,
+secure account connections, plugin registration, ZIP templates, skill descriptions
+and catalog publication requests. Payments and full moderation are separate stages.
+
 Skills live in `skills/chatium-<name>/SKILL.md`. Each skill has YAML frontmatter
 with a matching `name` and a `description`. `agents/openai.yaml` (Codex format) gives the menu
 label, short description and `assets/icon.svg` icon shown by Codex and Chatium Code;
