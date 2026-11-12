@@ -151,6 +151,10 @@ Use the server-side `@ads-cabinet/sdk` for live Yandex.Direct and VK Ads API acc
 
 Use recorded ClickHouse data for traffic reports, funnels, ad spend, acquisition cost and revenue attribution. These articles describe the schemas and queries through `queryAi` from `@traffic/sdk`.
 
+For analytical questions and one-off account queries, use [Traffic analysis](../chatium-traffic/SKILL.md)
+to choose the metric, period and filters and run the scoped SDK query. The references below
+cover integrating analytics into application code.
+
 | Task | Reference |
 | --- | --- |
 | Analyze visits, devices, pages, time on site or recorded business events | [Traffic](analytics-traffic.md) |

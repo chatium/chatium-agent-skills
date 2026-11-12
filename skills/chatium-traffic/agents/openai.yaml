@@ -1,0 +1,4 @@
+interface:
+  display_name: "Анализ трафика"
+  short_description: "Посещения, источники, события и рекламные расходы аккаунта"
+  icon_small: "./assets/icon.svg"

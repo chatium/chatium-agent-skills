@@ -20,6 +20,10 @@ with preview checks and before/after rendering measurements.
 and Chatium Email through the public SDKs, preserves existing DNS/mail services,
 and verifies HTTPS, DNS, transport and mailbox readiness separately from test-message delivery.
 
+[chatium-traffic](skills/chatium-traffic/SKILL.md) analyzes one account's visits,
+sessions, visitors, staff activity, business events and ad spend through `@traffic/sdk`,
+with a verified schema snapshot and SQL recipes.
+
 Skills live in `skills/chatium-<name>/SKILL.md`. Each skill has YAML frontmatter
 with a matching `name` and a `description`. `agents/openai.yaml` (Codex format) gives the menu
 label, short description and `assets/icon.svg` icon shown by Codex and Chatium Code;
