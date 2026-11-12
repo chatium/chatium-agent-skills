@@ -10,7 +10,7 @@ const result = await queryAi(ctx, sql) // Promise<any>, фактически { r
 const columns = await queryAi(ctx, 'DESCRIBE TABLE chatium_ai.access_log')
 ```
 
-Это исполнение SQL, не генерация SQL нейросетью. Обёртка вызывает `queryAiFunction.run(ctx, { query })`. Сервер валидирует caller и запрос, журналирует SQL и вызывает внутренний metric service на кластере `chatium-ai`, с областью текущего аккаунта и read-only режимом. Выборка данных read-only, но вызов оставляет запись в служебном журнале запросов.
+Это исполнение SQL, не генерация SQL нейросетью. SDK проверяет caller и запрос, задаёт область текущего аккаунта и read-only режим. Выборка данных read-only, но вызов оставляет запись в служебном журнале запросов. Агент выполняет все запросы через `queryAi(ctx, sql)` из `@traffic/sdk`.
 
 `SHOW CREATE TABLE` подтвердил: все три представления фильтруют текущий аккаунт и исключают `account_id` из SELECT. Доступ нельзя расширить фильтром домена или передачей account_id. В текущем SDK `custom_sec_show_start_logs` выключен для отдельного представления account_logs; это не означает исключение всех страниц Start из access_log.
 
