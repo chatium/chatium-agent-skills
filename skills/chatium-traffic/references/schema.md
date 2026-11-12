@@ -1,6 +1,6 @@
 # Контракт и доступные колонки
 
-Снимок схемы проверен 2026-11-12 через `chatium exec` → `queryAi` из `@traffic/sdk` в контрольном аккаунте. Это проверка SDK/схемы, не утверждение о данных клиентского аккаунта. Перед использованием дополнительных полей сверяй схему выбранного аккаунта/кластера.
+Схема и фактическое заполнение проверены 2026-11-12 через `chatium exec` → `queryAi` из `@traffic/sdk` в аккаунтах chatium.ru и yowad.ru. Заполнение зависит от периода, установленных интеграций и writer-а; результаты этих аккаунтов нельзя автоматически переносить на другой. Перед использованием дополнительных полей сверяй схему выбранного аккаунта/кластера.
 
 ## Контракт
 
@@ -14,9 +14,9 @@ const columns = await queryAi(ctx, 'DESCRIBE TABLE chatium_ai.access_log')
 
 `SHOW CREATE TABLE` подтвердил: все три представления фильтруют текущий аккаунт и исключают `account_id` из SELECT. Доступ нельзя расширить фильтром домена или передачей account_id. В текущем SDK `custom_sec_show_start_logs` выключен для отдельного представления account_logs; это не означает исключение всех страниц Start из access_log.
 
-Проверенный timezone — `Europe/Moscow`; на другом кластере проверь `SELECT timezone(), now()`. `DESCRIBE chatium_ai.performance_log` вернул отказ прав SHOW COLUMNS: его схема и доступ к данным этим тестом не подтверждены. Не обещай аналитику скорости через этот SDK без дополнительной проверки.
+Проверенный timezone — `Europe/Moscow`; на другом кластере проверь `SELECT timezone(), now()`. В прежней проверке контрольного аккаунта `DESCRIBE chatium_ai.performance_log` вернул отказ прав SHOW COLUMNS: его схема и доступ к данным здесь не подтверждены. Не обещай аналитику скорости через этот SDK без отдельной проверки целевого аккаунта.
 
-Источники контракта: traffic `sdk/index.ts`, `sdk/queryAi.ts`, `sdk/filteredQueryAi.ts`, `plugin/queryAi/index.ts` из опубликованной версии приложения; для всех колонок ниже — живой DESCRIBE через SDK. Семантика рекламных расходов дополнительно сверена с `start/plugin/processAnalytics/shared/trafficSpendContract.ts`.
+Источники контракта: traffic `sdk/index.ts`, `sdk/queryAi.ts`, `sdk/filteredQueryAi.ts`, `plugin/queryAi/index.ts`; для всех колонок ниже — живой DESCRIBE через SDK. Значения полей сверены с metric `logging.ts`, `clarityJsCode.ts`, `clarityActions.ts`; расходы — с `start/plugin/processAnalytics/shared/trafficSpendContract.ts` и writer-ами ads-cabinet, включая `yandexDirectDataCollectionHelpers.ts`. Контракты payload-а приведены в отдельной ссылке ниже.
 
 ## Как выбирать поля
 
@@ -33,196 +33,202 @@ const columns = await queryAi(ctx, 'DESCRIBE TABLE chatium_ai.access_log')
 | Типизированный payload | *_float, *_int, *_arrstr, *_uint32arr, *_mapstrstr; бизнес-смысл зависит от payloadMapping |
 | Процесс/контакт | workspace_id, workspace_path, customer_contacts; использовать по реестру/контракту событий |
 
-`matched_traffic_source_ids` в проверенной access_log отсутствует. `auth_id`, `auth_key`, `fcm_token` и прочие legacy поля могут присутствовать в схеме без полезного заполнения; наличие колонки не доказывает доступность или семантику данных. Выбирай нужные поля явно; секретные/контактные поля не нужны для агрегированных отчётов.
+`matched_traffic_source_ids` в проверенной access_log отсутствует. Legacy auth-поля в проверенном окне пусты; `fcm_token` при этом может быть заполнен. Выбирай нужные поля явно: секретные/контактные значения не нужны для агрегированных отчётов, наличие колонки не доказывает её пригодность для конкретной метрики.
 
-## Полный снимок схемы
+## Словарь всех колонок
+
+Схемы обоих аккаунтов совпали: 110 + 22 + 42 колонки. Значение поля подтверждалось кодом writer-а и проверками через SDK; где общего контракта нет, это указано явно. Тип из DESCRIBE не объясняет бизнес-смысл.
+
+NULL, пустая строка, пустой массив и дефолтный 0 требуют отдельной интерпретации. Для Bool ноль — false, для денег/счётчиков ноль может быть реальным значением; отсутствие ненулевых значений не равно отсутствию данных.
+
+Период, класс записей и конкретное семейство событий выбирай до агрегации; практические фильтры — в [рецептах](queries.md), переиспользование payload-слотов — в [контрактах событий](event-fields.md), качество поведения — в [поведении на странице](behaviour.md).
 
 ### chatium_ai.access_log — 110 колонок
 
-| Колонка | ClickHouse тип |
-|---|---|
-| `uid` | `String` |
-| `url` | `String` |
-| `path` | `String` |
-| `domain` | `String` |
-| `referer` | `Nullable(String)` |
-| `user_agent` | `Nullable(String)` |
-| `ip` | `Nullable(String)` |
-| `location_country` | `Nullable(String)` |
-| `location_region` | `Nullable(String)` |
-| `location_time_zone` | `Nullable(String)` |
-| `location_city` | `Nullable(String)` |
-| `location_coordinates_latitude` | `Nullable(Float32)` |
-| `location_coordinates_longitude` | `Nullable(Float32)` |
-| `device_name` | `Nullable(String)` |
-| `os_name` | `Nullable(String)` |
-| `request_type` | `String` |
-| `auth_id` | `Nullable(Int32)` |
-| `account_type` | `String` |
-| `user_id` | `Nullable(String)` |
-| `user_type` | `LowCardinality(String)` |
-| `session_id` | `String` |
-| `ts` | `DateTime` |
-| `ts64` | `DateTime64(3)` |
-| `dt` | `Date` |
-| `auth_key` | `Nullable(String)` |
-| `auth_first_name` | `Nullable(String)` |
-| `auth_last_name` | `Nullable(String)` |
-| `auth_lang` | `Nullable(String)` |
-| `user_roles` | `Array(String)` |
-| `user_status` | `Nullable(String)` |
-| `user_first_name` | `Nullable(String)` |
-| `user_last_name` | `Nullable(String)` |
-| `user_icon_image` | `Nullable(String)` |
-| `user_phone` | `Nullable(String)` |
-| `user_email` | `Nullable(String)` |
-| `user_platforms` | `Array(String)` |
-| `auth_type` | `Nullable(String)` |
-| `user_expires_at` | `Nullable(DateTime)` |
-| `user_expires_at_dt` | `Nullable(Date)` |
-| `fcm_token` | `Nullable(String)` |
-| `utm_source` | `Nullable(String)` |
-| `utm_content` | `Nullable(String)` |
-| `utm_medium` | `Nullable(String)` |
-| `utm_campaign` | `Nullable(String)` |
-| `utm_term` | `Nullable(String)` |
-| `session_email` | `Nullable(String)` |
-| `session_phone` | `Nullable(String)` |
-| `ua_client_type` | `Nullable(String)` |
-| `ua_client_name` | `Nullable(String)` |
-| `ua_client_version` | `Nullable(String)` |
-| `ua_device_type` | `Nullable(String)` |
-| `ua_device_brand` | `Nullable(String)` |
-| `ua_device_model` | `Nullable(String)` |
-| `ua_os_name` | `Nullable(String)` |
-| `ua_os_version` | `Nullable(String)` |
-| `ua_os_platform` | `Nullable(String)` |
-| `ua_bot_name` | `Nullable(String)` |
-| `ua_bot_category` | `Nullable(String)` |
-| `sid` | `Nullable(String)` |
-| `sid_duration` | `Nullable(Int32)` |
-| `title` | `Nullable(String)` |
-| `screen_height` | `Nullable(Int16)` |
-| `screen_width` | `Nullable(Int16)` |
-| `screen_pixel_ratio` | `Nullable(Int8)` |
-| `inferred_uid` | `Nullable(Bool)` |
-| `inferred_sid` | `Nullable(Bool)` |
-| `funnel` | `Nullable(String)` |
-| `funnel_node` | `Nullable(String)` |
-| `funnel_node_from` | `Nullable(String)` |
-| `action` | `Nullable(String)` |
-| `action_params` | `Nullable(String)` |
-| `urlPath` | `String` |
-| `action_param1` | `Nullable(String)` |
-| `action_param2` | `Nullable(String)` |
-| `action_param3` | `Nullable(String)` |
-| `user_account_role` | `Nullable(String)` |
-| `action_param1_float` | `Nullable(Float32)` |
-| `action_param2_float` | `Nullable(Float32)` |
-| `action_param3_float` | `Nullable(Float32)` |
-| `action_param4_float` | `Nullable(Float32)` |
-| `action_param5_float` | `Nullable(Float32)` |
-| `action_param6_float` | `Nullable(Float32)` |
-| `action_param7_float` | `Nullable(Float32)` |
-| `action_param8_float` | `Nullable(Float32)` |
-| `action_param1_int` | `Nullable(Int32)` |
-| `action_param2_int` | `Nullable(Int32)` |
-| `action_param3_int` | `Nullable(Int32)` |
-| `sign` | `Int8` |
-| `keys` | `Array(String)` |
-| `values` | `Array(String)` |
-| `action_param1_arrstr` | `Array(String)` |
-| `action_param2_arrstr` | `Array(String)` |
-| `action_param3_arrstr` | `Array(String)` |
-| `action_param1_uint32arr` | `Array(UInt32)` |
-| `gc_visit_id` | `Nullable(Int64)` |
-| `gc_visitor_id` | `Nullable(Int64)` |
-| `gc_session_id` | `Nullable(Int64)` |
-| `param_clrt` | `String` |
-| `clrt_type` | `LowCardinality(String)` |
-| `clrt_campaign_id` | `String` |
-| `clrt_ad_id` | `String` |
-| `_debug` | `LowCardinality(String)` |
-| `is_from_kafka` | `Bool` |
-| `clrt_run_id` | `UInt32` |
-| `action_param1_mapstrstr` | `Map(String, String)` |
-| `action_param2_mapstrstr` | `Map(String, String)` |
-| `resolved_user_id` | `String` |
-| `customer_contacts` | `Array(String)` |
-| `workspace_id` | `String` |
-| `workspace_path` | `String` |
+| Колонка | ClickHouse тип | Что хранит и как использовать |
+|---|---|---|
+| `uid` | `String` | Идентификатор посетителя/браузера из трекера; может передаваться также в событиях рассылки. `uniqExact(uid)` становится посещаемостью только после фильтра просмотров; пустые строки исключить. |
+| `url` | `String` | Полный адрес страницы, ресурса или имя события (`event://…`, `chatium://…`). Query string может содержать персональные данные. Для страниц сначала выбрать HTTP(S), нужные домены и класс событий. |
+| `path` | `String` | Путь, извлечённый из `url`, без хоста. Одинаковые пути разных сайтов объединятся при GROUP BY path. |
+| `domain` | `String` | Хост, извлечённый из URL. У `event://…` в проверенных данных пуст; это не всегда домен аккаунта. Для сайта использовать явный список хостов. |
+| `referer` | `Nullable(String)` | Переданный referrer. Может отсутствовать из-за браузера/политики/типа события; пустота сама по себе не доказывает прямой заход. |
+| `user_agent` | `Nullable(String)` | Исходная строка User-Agent. Наличие строки не гарантирует заполнения всех разобранных `ua_*`: разные источники пишут события по-разному. |
+| `ip` | `Nullable(String)` | IP, записанный источником события. Не идентификатор человека и не замена `uid`; для агрегированного отчёта обычно не нужен. |
+| `location_country` | `Nullable(String)` | Страна из переданных/определённых геоданных; проверять заполненность. Пустое значение не отдельная страна. |
+| `location_region` | `Nullable(String)` | Регион из геоданных, не регион из профиля клиента. |
+| `location_time_zone` | `Nullable(String)` | Часовой пояс геолокации клиента. Не часовой пояс ClickHouse и не автоматическое правило группировки `dt`. |
+| `location_city` | `Nullable(String)` | Город из геоданных; точность ограничена источником геолокации. |
+| `location_coordinates_latitude` | `Nullable(Float32)` | Широта геолокации, не подтверждённый GPS клиента. Ноль — допустимая координата, NULL — отсутствие. |
+| `location_coordinates_longitude` | `Nullable(Float32)` | Долгота геолокации, не подтверждённый GPS клиента. Ноль — допустимая координата, NULL — отсутствие. |
+| `device_name` | `Nullable(String)` | Legacy имя/модель устройства из UA parser. Для нового отчёта предпочитай `ua_device_model`. |
+| `os_name` | `Nullable(String)` | Legacy имя ОС из UA parser. Для нового отчёта предпочитай `ua_os_name`. |
+| `request_type` | `String` | Техническое поле logger-а. Проверенные writers записывают константу `get`, в том числе для серверных событий; не определяй по нему HTTP-метод или просмотр. |
+| `auth_id` | `Nullable(Int32)` | Legacy auth-поле; в текущем изученном writer-е не заполняется и в проверенном окне пусто. Для пользователя/роли применяй `user_id`, `user_type`, `user_account_role`. |
+| `account_type` | `String` | Тип аккаунта, переданный writer-ом; может отсутствовать у отдельных источников. Не роль пользователя. |
+| `user_id` | `Nullable(String)` | ID пользователя на момент события; встречается и при `user_type=Anonymous`/`Bot`. Для известных реальных пользователей проверяй `user_type=Real` и непустой ID. |
+| `user_type` | `LowCardinality(String)` | Тип пользователя в событии (`Real`, `Anonymous`, `Bot`, пусто). `Bot` здесь не то же самое, что робот по User-Agent в `ua_bot_name`. |
+| `session_id` | `String` | ID платформенной сессии из контекста события; может существовать без авторизованного пользователя. Не аналитический визит. Для визитов используй `sid`. |
+| `ts` | `DateTime` | Время события с секундной точностью. Logger берёт переданный ts64/ts либо текущее время. Для периода используй полуоткрытый интервал. |
+| `ts64` | `DateTime64(3)` | Время события с миллисекундами. Для порядка событий и точных границ предпочтительнее `ts`; это не время получения последнего обновления поведения. |
+| `dt` | `Date` | Дата события для ограничения партиций/группировки по дням. Сверяй часовой пояс сервера; для неполных суток добавляй условия по `ts64`. |
+| `auth_key` | `Nullable(String)` | Legacy auth-поле; в текущем изученном writer-е не заполняется и в проверенном окне пусто. Для пользователя/роли применяй `user_id`, `user_type`, `user_account_role`. Не выбирать как данные отчёта: исторические значения могут быть секретами. |
+| `auth_first_name` | `Nullable(String)` | Legacy auth-поле; в текущем изученном writer-е не заполняется и в проверенном окне пусто. Для пользователя/роли применяй `user_id`, `user_type`, `user_account_role`. |
+| `auth_last_name` | `Nullable(String)` | Legacy auth-поле; в текущем изученном writer-е не заполняется и в проверенном окне пусто. Для пользователя/роли применяй `user_id`, `user_type`, `user_account_role`. |
+| `auth_lang` | `Nullable(String)` | Legacy auth-поле; в текущем изученном writer-е не заполняется и в проверенном окне пусто. Для пользователя/роли применяй `user_id`, `user_type`, `user_account_role`. |
+| `user_roles` | `Array(String)` | Legacy поле профиля/доступа; текущий writer помечает его deprecated и не заполняет. Для активности используй `user_account_role`; текущее состояние запрашивай через SDK пользователей. |
+| `user_status` | `Nullable(String)` | Legacy поле профиля/доступа; текущий writer помечает его deprecated и не заполняет. Для активности используй `user_account_role`; текущее состояние запрашивай через SDK пользователей. |
+| `user_first_name` | `Nullable(String)` | Снимок имени из пользователя события; не актуальная карточка CRM и не ключ группировки. |
+| `user_last_name` | `Nullable(String)` | Снимок фамилии из пользователя события; может отсутствовать или устареть. |
+| `user_icon_image` | `Nullable(String)` | Ссылка/идентификатор изображения из пользователя события; формат задаёт источник, для подсчёта аудитории не нужен. |
+| `user_phone` | `Nullable(String)` | Телефон, переданный с пользователем события; не гарантированно подтверждённый и не полный список контактов CRM. |
+| `user_email` | `Nullable(String)` | Email, переданный с пользователем события; не показатель текущего подтверждения адреса или согласия на рассылку. |
+| `user_platforms` | `Array(String)` | Legacy поле профиля/доступа; текущий writer помечает его deprecated и не заполняет. Для активности используй `user_account_role`; текущее состояние запрашивай через SDK пользователей. |
+| `auth_type` | `Nullable(String)` | Legacy auth-поле; в текущем изученном writer-е не заполняется и в проверенном окне пусто. Для пользователя/роли применяй `user_id`, `user_type`, `user_account_role`. |
+| `user_expires_at` | `Nullable(DateTime)` | Legacy поле профиля/доступа; текущий writer помечает его deprecated и не заполняет. Для активности используй `user_account_role`; текущее состояние запрашивай через SDK пользователей. |
+| `user_expires_at_dt` | `Nullable(Date)` | Legacy поле профиля/доступа; текущий writer помечает его deprecated и не заполняет. Для активности используй `user_account_role`; текущее состояние запрашивай через SDK пользователей. |
+| `fcm_token` | `Nullable(String)` | Токен push-доставки, если передан writer-ом. Секретное техническое значение: не выбирать в обычной аналитике и не выводить пользователю. |
+| `utm_source` | `Nullable(String)` | UTM: источник; передаётся writer-ом или извлекается из URL. Это метка конкретной строки, не автоматически первый источник визита. Непустые UTM в произвольных событиях не доказывают посещение. |
+| `utm_content` | `Nullable(String)` | UTM: содержание/объявление; передаётся writer-ом или извлекается из URL. Это метка конкретной строки, не автоматически первый источник визита. Непустые UTM в произвольных событиях не доказывают посещение. |
+| `utm_medium` | `Nullable(String)` | UTM: канал/тип трафика; передаётся writer-ом или извлекается из URL. Это метка конкретной строки, не автоматически первый источник визита. Непустые UTM в произвольных событиях не доказывают посещение. |
+| `utm_campaign` | `Nullable(String)` | UTM: кампания; передаётся writer-ом или извлекается из URL. Это метка конкретной строки, не автоматически первый источник визита. Непустые UTM в произвольных событиях не доказывают посещение. |
+| `utm_term` | `Nullable(String)` | UTM: ключевое слово/дополнительная метка; передаётся writer-ом или извлекается из URL. Это метка конкретной строки, не автоматически первый источник визита. Непустые UTM в произвольных событиях не доказывают посещение. |
+| `session_email` | `Nullable(String)` | Email из платформенной сессии, если writer его передал. Не выводить авторизацию/верификацию из наличия поля. |
+| `session_phone` | `Nullable(String)` | Телефон из платформенной сессии, если writer его передал. Не ключ аналитической сессии. |
+| `ua_client_type` | `Nullable(String)` | Тип клиента по parser-у (`browser`, `app`, `mobile app`, другие). Chatium app writer выставляет `app`; `mobile app` не обязательно Chatium. |
+| `ua_client_name` | `Nullable(String)` | Название клиента/браузера; для распознанного Chatium приложения — `Chatium`. |
+| `ua_client_version` | `Nullable(String)` | Версия клиента; для Chatium приложения — build из заголовков, для браузера — версия UA parser-а. |
+| `ua_device_type` | `Nullable(String)` | Класс устройства (desktop, smartphone и другие значения parser-а); не ОС. |
+| `ua_device_brand` | `Nullable(String)` | Бренд устройства, если определяется по User-Agent. |
+| `ua_device_model` | `Nullable(String)` | Модель устройства, если определяется по User-Agent. |
+| `ua_os_name` | `Nullable(String)` | Название ОС по UA parser-у или заголовкам Chatium приложения. |
+| `ua_os_version` | `Nullable(String)` | Версия ОС, если распознана. |
+| `ua_os_platform` | `Nullable(String)` | Архитектура/платформа ОС по UA parser-у; не рекламная платформа. |
+| `ua_bot_name` | `Nullable(String)` | Название робота, распознанного по User-Agent. Пустое значение не доказывает, что посетитель человек. |
+| `ua_bot_category` | `Nullable(String)` | Категория распознанного робота; фильтр задачи обычно начинается с `ua_bot_name`. |
+| `sid` | `Nullable(String)` | ID трекерного визита, обычно из cookie x-chtm-uid-sid. Отделён от платформенного `session_id`; исключай NULL/пустые значения из uniq. |
+| `sid_duration` | `Nullable(Int32)` | Миллисекунды от времени в `sid` до записи события (`Date.now()` в writer-е). Накопительная величина, не время просмотра/активного внимания. Не суммировать строки и не усреднять по всем просмотрам. |
+| `title` | `Nullable(String)` | Переданный заголовок страницы/экрана. Меняется; для стабильной группировки предпочитай нормализованный путь. |
+| `screen_height` | `Nullable(Int16)` | Высота экрана/viewport, переданная клиентом. Не высота документа и не глубина прокрутки. |
+| `screen_width` | `Nullable(Int16)` | Ширина экрана/viewport, переданная клиентом. Проверь источник при расчёте адаптивных размеров. |
+| `screen_pixel_ratio` | `Nullable(Int8)` | Переданный pixel ratio; колонка целочисленная, дробная точность исходного значения не гарантируется. |
+| `inferred_uid` | `Nullable(Bool)` | Флаг восстановленного/выведенного uid, если установлен writer-ом. NULL не равнозначен подтверждённому false; не использовать как самостоятельное доказательство личности. |
+| `inferred_sid` | `Nullable(Bool)` | Флаг восстановленного/выведенного sid, если установлен writer-ом; трактовка зависит от пути сбора. |
+| `funnel` | `Nullable(String)` | Строковая метка воронки/источника события. В Sender это originType, а не обязательно воронка сайта. |
+| `funnel_node` | `Nullable(String)` | Узел/ID источника по контракту события; в Sender — originId. Универсальной семантики «этап продажи» нет. |
+| `funnel_node_from` | `Nullable(String)` | Предыдущий узел по общему интерфейсу; в Sender сюда попадает mailingId. Читай контракт конкретного события. |
+| `action` | `Nullable(String)` | Действие/подтип по контракту writer-а; у Sender — транспорт, у CRM — `deal:created` и т.п. Пустое action встречается и у бизнес-событий, поэтому само по себе не означает просмотр. |
+| `action_params` | `Nullable(String)` | Строковый payload конкретного события, часто JSON. Сначала проверь `isValidJSON` и контракт ключей/версии; в строке могут быть контакты и содержание сообщений. |
+| `urlPath` | `String` | URL без query string и fragment; сохраняет протокол и хост. Подходит для страниц по доменам и точного семейства событий. |
+| `action_param1` | `Nullable(String)` | Строковый слот 1 конкретного события. Например, у Sender это chatId, а у CRM сделки — dealId. Сначала фильтр по семейству URL/версии, потом интерпретация. |
+| `action_param2` | `Nullable(String)` | Строковый слот 2 конкретного события. Например, у Sender это channelId, а у CRM сделки — status. Сначала фильтр по семейству URL/версии, потом интерпретация. |
+| `action_param3` | `Nullable(String)` | Строковый слот 3 конкретного события. Например, у Sender это externalMessageId, а у CRM сделки — stageId. Сначала фильтр по семейству URL/версии, потом интерпретация. |
+| `user_account_role` | `Nullable(String)` | Роль пользователя в аккаунте на момент события: Owner/Developer/Admin/Staff/None/пусто. Не текущий список сотрудников; пустая роль не доказывает, что это клиент. |
+| `action_param1_float` | `Nullable(Float32)` | Дробный слот 1 payload-а; назначение и единица задаются событием. Нельзя считать любую такую колонку суммой денег. |
+| `action_param2_float` | `Nullable(Float32)` | Дробный слот 2 payload-а; назначение и единица задаются событием. Нельзя считать любую такую колонку суммой денег. |
+| `action_param3_float` | `Nullable(Float32)` | Дробный слот 3 payload-а; назначение и единица задаются событием. Нельзя считать любую такую колонку суммой денег. |
+| `action_param4_float` | `Nullable(Float32)` | Дробный слот 4 payload-а; назначение и единица задаются событием. Нельзя считать любую такую колонку суммой денег. |
+| `action_param5_float` | `Nullable(Float32)` | Дробный слот 5 payload-а; назначение и единица задаются событием. Нельзя считать любую такую колонку суммой денег. |
+| `action_param6_float` | `Nullable(Float32)` | Дробный слот 6 payload-а; назначение и единица задаются событием. Нельзя считать любую такую колонку суммой денег. |
+| `action_param7_float` | `Nullable(Float32)` | Дробный слот 7 payload-а; назначение и единица задаются событием. Нельзя считать любую такую колонку суммой денег. |
+| `action_param8_float` | `Nullable(Float32)` | Дробный слот 8. В унифицированных событиях Sender и mailings содержит версию формата 1; это не денежная сумма. |
+| `action_param1_int` | `Nullable(Int32)` | Целочисленный слот 1 payload-а по контракту события. NULL отличается от реального нуля. Например, при `storage_file_access` это внутренний ID файла. |
+| `action_param2_int` | `Nullable(Int32)` | Целочисленный слот 2 payload-а по контракту события. NULL отличается от реального нуля. |
+| `action_param3_int` | `Nullable(Int32)` | Целочисленный слот 3 payload-а по контракту события. NULL отличается от реального нуля. |
+| `sign` | `Int8` | Технический знак записи, по умолчанию 1. В проверенном окне все значения 1. Если встретятся другие, уточни контракт отмены/агрегации перед count/sum. |
+| `keys` | `Array(String)` | Дополнительные ключи в виде массива, по контракту writer-а; соответствуют `values`. Перед arrayZip проверь равенство длин. |
+| `values` | `Array(String)` | Значения к массиву `keys`; не независимый список событий. ARRAY JOIN размножает строки и меняет базу подсчёта. |
+| `action_param1_arrstr` | `Array(String)` | Массив строк payload-а, слот 1. Семантика определяется событием; ARRAY JOIN увеличивает число строк. У Sender может содержать mailingScheduleId. |
+| `action_param2_arrstr` | `Array(String)` | Массив строк payload-а, слот 2. Семантика определяется событием; ARRAY JOIN увеличивает число строк. |
+| `action_param3_arrstr` | `Array(String)` | Массив строк payload-а, слот 3. Семантика определяется событием; ARRAY JOIN увеличивает число строк. |
+| `action_param1_uint32arr` | `Array(UInt32)` | Массив UInt32 payload-а; универсальная семантика элементов не задана. Проверяй контракт события. |
+| `gc_visit_id` | `Nullable(Int64)` | ID визита GetCourse, если интеграция передала его; не замена Chatium sid. В проверенных аккаунтах не заполнен. |
+| `gc_visitor_id` | `Nullable(Int64)` | ID посетителя GetCourse; ноль/NULL означает отсутствие. Участвует в разрешении `resolved_user_id`. |
+| `gc_session_id` | `Nullable(Int64)` | ID сессии GetCourse; отличен от `sid` и `session_id`. |
+| `param_clrt` | `String` | Исходная рекламная метка clrt, если сохранена источником. Может быть пустой при заполненных `clrt_*` из UTM fallback. |
+| `clrt_type` | `LowCardinality(String)` | Рекламная система, разобранная из clrt/UTM: yandex, vk, tg_adstat, unknown. Не то же пространство кодов, что `platform` расходов. |
+| `clrt_campaign_id` | `String` | ID кампании из clrt либо подходящей UTM-разметки. Сверяй тип источника перед соединением с рекламой. |
+| `clrt_ad_id` | `String` | ID объявления из clrt/UTM-разметки; не обязательно совпадает со всей строкой `traffic_source_id`. |
+| `_debug` | `LowCardinality(String)` | Служебная строка диагностики сборщика; универсальный контракт для отчётов не установлен. |
+| `is_from_kafka` | `Bool` | Признак технического пути поступления данных через Kafka. Не признак пользовательского действия или качества. |
+| `clrt_run_id` | `UInt32` | Случайный UInt32 ID запуска клиентского трекера. Один запуск может выдавать несколько записей; сам по себе не уникальный ключ просмотра. |
+| `action_param1_mapstrstr` | `Map(String, String)` | Словарь строк payload-а. У Sender — personId/channelSource и дополнительные tracking-поля; в других событиях ключи означают другое. Используй mapKeys для разведки без выгрузки значений. |
+| `action_param2_mapstrstr` | `Map(String, String)` | Второй словарь строк payload-а; состав ключей и значение задаёт конкретный writer. |
+| `resolved_user_id` | `String` | Вычисляемый ID: неанонимный user_id → разрешение по GC visitor/uid → исходный user_id → uid → GC visitor ID → пусто. Может измениться при обновлении словаря. Не равно «авторизованный клиент». |
+| `customer_contacts` | `Array(String)` | Контактные ключи клиента для связывания событий CRM, обычно `тип:значение`. Это массив контактов, а не несколько клиентов/конверсий; не разворачивай его перед count событий. |
+| `workspace_id` | `String` | ID процесса/рабочей области, если явно передан writer-ом. В исследованном окне пуст в обоих аккаунтах; нельзя восстановить из funnel без контракта. |
+| `workspace_path` | `String` | Путь процесса/рабочей области, если явно передан writer-ом. Не путь посещённой страницы (для него `path`). |
 
 ### chatium_ai.behaviour2_log — 22 колонок
 
-| Колонка | ClickHouse тип |
-|---|---|
-| `version_ts` | `DateTime64(3)` |
-| `ts64` | `DateTime64(3)` |
-| `dt` | `Date` |
-| `clrt_run_id` | `UInt32` |
-| `browser_session_id` | `String` |
-| `browser_id_started_at` | `DateTime64(3)` |
-| `url` | `String` |
-| `urlPath` | `String` |
-| `uid` | `String` |
-| `sid` | `String` |
-| `user_id` | `String` |
-| `user_type` | `LowCardinality(String)` |
-| `gc_visit_id` | `Int64` |
-| `gc_visitor_id` | `Int64` |
-| `gc_session_id` | `Int64` |
-| `view_focused_duration` | `UInt32` |
-| `view_total_duration` | `UInt32` |
-| `mouse_distance` | `UInt32` |
-| `scroll_distance` | `UInt32` |
-| `click_counter` | `UInt32` |
-| `selection_length` | `UInt32` |
-| `resolved_user_id` | `String` |
+| Колонка | ClickHouse тип | Что хранит и как использовать |
+|---|---|---|
+| `version_ts` | `DateTime64(3)` | Время поступления очередного снимка на сервер (миллисекундная точность). Это версия наблюдения, не начало страницы. |
+| `ts64` | `DateTime64(3)` | serverInitTime клиентского трекера — время начала его запуска, повторяется у последующих снимков. Не время каждой отправки поведения. |
+| `dt` | `Date` | Дата начала запуска по ts64. Обновление старой вкладки может появиться позже, в уже прошедшем дне. |
+| `clrt_run_id` | `UInt32` | Случайный UInt32 ID запуска клиентского трекера. Один запуск может выдавать несколько записей; сам по себе не уникальный ключ просмотра. |
+| `browser_session_id` | `String` | Случайный ID из sessionStorage вкладки/браузерной сессии трекера; сохраняется при переходах. Не sid аналитического визита. |
+| `browser_id_started_at` | `DateTime64(3)` | Время первоначального создания browser_session_id в sessionStorage. Может быть существенно раньше ts64 текущей страницы. |
+| `url` | `String` | URL, переданный клиентом при отправке снимка; может меняться у одного запуска трекера (навигация/loc). Нельзя автоматически приписать весь накопленный счётчик этому URL. |
+| `urlPath` | `String` | URL без query/fragment. Нормализация объединяет разные параметры; сама по себе не образует ключ снимка. |
+| `uid` | `String` | Идентификатор посетителя/браузера из трекера; может передаваться также в событиях рассылки. `uniqExact(uid)` становится посещаемостью только после фильтра просмотров; пустые строки исключить. |
+| `sid` | `String` | ID трекерного визита, обычно из cookie x-chtm-uid-sid. Отделён от платформенного `session_id`; исключай NULL/пустые значения из uniq. |
+| `user_id` | `String` | ID пользователя на момент события; встречается и при `user_type=Anonymous`/`Bot`. Для известных реальных пользователей проверяй `user_type=Real` и непустой ID. |
+| `user_type` | `LowCardinality(String)` | Тип пользователя в событии (`Real`, `Anonymous`, `Bot`, пусто). `Bot` здесь не то же самое, что робот по User-Agent в `ua_bot_name`. |
+| `gc_visit_id` | `Int64` | ID визита GetCourse, если интеграция передала его; не замена Chatium sid. В проверенных аккаунтах не заполнен. |
+| `gc_visitor_id` | `Int64` | ID посетителя GetCourse; ноль/NULL означает отсутствие. Участвует в разрешении `resolved_user_id`. |
+| `gc_session_id` | `Int64` | ID сессии GetCourse; отличен от `sid` и `session_id`. |
+| `view_focused_duration` | `UInt32` | Накопительный счётчик фокуса в миллисекундах по клиентскому tracker-у. Не «время чтения». В данных бывает больше total; нужен контроль качества и политика обработки аномалий. |
+| `view_total_duration` | `UInt32` | Накопительное время от старта трекера в миллисекундах, включая фон/открытую вкладку. При суммировании повторных снимков завышается; долгоживущие вкладки создают выбросы. |
+| `mouse_distance` | `UInt32` | Накопленная длина пути мыши в координатах страницы (CSS pixels), округлённая. Не число движений/кликов. |
+| `scroll_distance` | `UInt32` | Накопленная сумма модулей горизонтального и вертикального скролла в CSS pixels. Это не процент глубины и не максимальная просмотренная высота. |
+| `click_counter` | `UInt32` | Накопленный счётчик pointerdown, а не только успешных переходов по ссылкам. |
+| `selection_length` | `UInt32` | Накопленная длина выделенного текста на pointerup (JS string.length). Повторные выделения учитываются снова; это не число уникальных прочитанных символов. |
+| `resolved_user_id` | `String` | Вычисляемый ID: неанонимный user_id → разрешение по GC visitor/uid → исходный user_id → uid → GC visitor ID → пусто. Может измениться при обновлении словаря. Не равно «авторизованный клиент». |
 
 ### chatium_ai.traffic_source_statistics — 42 колонок
 
-| Колонка | ClickHouse тип |
-|---|---|
-| `dt` | `Date` |
-| `traffic_source_id` | `String` |
-| `updated_at` | `DateTime64(3)` |
-| `is_deleted` | `Bool` |
-| `expense` | `Decimal(38, 4)` |
-| `expense_eur` | `Decimal(38, 4)` |
-| `exchange_eur_to_rub` | `Decimal(18, 6)` |
-| `currency` | `LowCardinality(String)` |
-| `clicks` | `UInt32` |
-| `views` | `UInt32` |
-| `impressions` | `UInt32` |
-| `goals` | `UInt32` |
-| `utm_source` | `String` |
-| `utm_content` | `String` |
-| `utm_medium` | `String` |
-| `utm_campaign` | `String` |
-| `utm_term` | `String` |
-| `funnel` | `String` |
-| `client_id` | `String` |
-| `landing` | `String` |
-| `platform` | `LowCardinality(String)` |
-| `action_param1` | `String` |
-| `action_param2` | `String` |
-| `action_param3` | `String` |
-| `action_param4` | `String` |
-| `action_param5` | `String` |
-| `action_param1_float` | `Float32` |
-| `action_param2_float` | `Float32` |
-| `action_param3_float` | `Float32` |
-| `action_param4_float` | `Float32` |
-| `action_param5_float` | `Float32` |
-| `action_param1_int` | `Int32` |
-| `action_param2_int` | `Int32` |
-| `action_param3_int` | `Int32` |
-| `action_param4_int` | `Int32` |
-| `action_param5_int` | `Int32` |
-| `action_param1_arrstr` | `Array(String)` |
-| `action_param2_arrstr` | `Array(String)` |
-| `action_param3_arrstr` | `Array(String)` |
-| `action_param1_uint32arr` | `Array(UInt32)` |
-| `action_param1_mapstrstr` | `Map(String, String)` |
-| `is_from_kafka` | `Bool` |
+| Колонка | ClickHouse тип | Что хранит и как использовать |
+|---|---|---|
+| `dt` | `Date` | Календарный день статистики рекламного источника. Гранулярность — день, точного окна по часам здесь нет. |
+| `traffic_source_id` | `String` | Стабильный ключ рекламного источника/объявления внутри интеграции. Аналитическая строка обычно `(dt, traffic_source_id)`; проверяй уникальность в полученных данных. |
+| `updated_at` | `DateTime64(3)` | Момент записи/обновления статистики. Не дата клика; может быть позже dt. |
+| `is_deleted` | `Bool` | Логическое удаление записи. Для расходов и показов добавляй `is_deleted = 0`. |
+| `expense` | `Decimal(38, 4)` | Расход в RUB по контракту интеграций; Decimal. Не прибавляй expense_eur к нему. |
+| `expense_eur` | `Decimal(38, 4)` | Исходная сумма в EUR для источников, которые её предоставляют. Ноль может означать, что EUR не применяется. |
+| `exchange_eur_to_rub` | `Decimal(18, 6)` | Использованный курс EUR→RUB, если применимо. Ноль не является валидным курсом для пересчёта. |
+| `currency` | `LowCardinality(String)` | Код валюты по writer-у; нужен для сверки контрактов. В проверенном historical срезе RUB; это не повод трактовать expense как любую валюту. |
+| `clicks` | `UInt32` | Клики рекламной системы; отличаются от сессий трекера и кликов внутри сайта. |
+| `views` | `UInt32` | Метрика источника. Для проверенного сборщика Yandex Direct сюда пишутся рекламные показы (`shows`); у других платформ значение уточнять по writer-у. |
+| `impressions` | `UInt32` | Отдельный слот рекламных показов. Может быть 0 при заполненном views. Нельзя складывать views+impressions или всегда брать только impressions без контракта платформы. |
+| `goals` | `UInt32` | Конверсии/цели рекламной системы; не число оплаченных заказов CRM. Уточняй определение/настройку цели. |
+| `utm_source` | `String` | UTM из настроек рекламного источника/объявления. Это плановая разметка, не значение фактического визита; при связке с access_log сверяй полноту и качество. |
+| `utm_content` | `String` | UTM из настроек рекламного источника/объявления. Это плановая разметка, не значение фактического визита; при связке с access_log сверяй полноту и качество. |
+| `utm_medium` | `String` | UTM из настроек рекламного источника/объявления. Это плановая разметка, не значение фактического визита; при связке с access_log сверяй полноту и качество. |
+| `utm_campaign` | `String` | UTM из настроек рекламного источника/объявления. Это плановая разметка, не значение фактического визита; при связке с access_log сверяй полноту и качество. |
+| `utm_term` | `String` | UTM из настроек рекламного источника/объявления. Это плановая разметка, не значение фактического визита; при связке с access_log сверяй полноту и качество. |
+| `funnel` | `String` | Дополнительная метка группировки рекламного источника, если задана при импорте. |
+| `client_id` | `String` | Идентификатор клиента/кабинета по рекламной интеграции. Не Chatium user_id и не посетитель uid. |
+| `landing` | `String` | Посадочная страница из рекламной интеграции, а не подтверждённая посещённая страница. |
+| `platform` | `LowCardinality(String)` | Код платформы: YD/VK/Tg/Av, встречается VKold. Не смешивай с clrt_type и utm_source без явного соответствия. |
+| `action_param1` | `String` | Дополнительный строковый слот 1 рекламной интеграции. Общего значения для всех платформ не установлено; читай writer конкретного источника. |
+| `action_param2` | `String` | Дополнительный строковый слот 2 рекламной интеграции. Общего значения для всех платформ не установлено; читай writer конкретного источника. |
+| `action_param3` | `String` | Дополнительный строковый слот 3 рекламной интеграции. Общего значения для всех платформ не установлено; читай writer конкретного источника. |
+| `action_param4` | `String` | Дополнительный строковый слот 4 рекламной интеграции. Общего значения для всех платформ не установлено; читай writer конкретного источника. |
+| `action_param5` | `String` | Дополнительный строковый слот 5 рекламной интеграции. Общего значения для всех платформ не установлено; читай writer конкретного источника. |
+| `action_param1_float` | `Float32` | Дополнительный дробный слот 1 интеграции; единица и назначение задаются платформой, не считать автоматически расходом. |
+| `action_param2_float` | `Float32` | Дополнительный дробный слот 2 интеграции; единица и назначение задаются платформой, не считать автоматически расходом. |
+| `action_param3_float` | `Float32` | Дополнительный дробный слот 3 интеграции; единица и назначение задаются платформой, не считать автоматически расходом. |
+| `action_param4_float` | `Float32` | Дополнительный дробный слот 4 интеграции; единица и назначение задаются платформой, не считать автоматически расходом. |
+| `action_param5_float` | `Float32` | Дополнительный дробный слот 5 интеграции; единица и назначение задаются платформой, не считать автоматически расходом. |
+| `action_param1_int` | `Int32` | Флаг проблем UTM в проверенных интеграциях: 1 — настройки UTM не найдены/не подтверждены. 0 не доказывает корректную атрибуцию каждой сессии. |
+| `action_param2_int` | `Int32` | Дополнительный целочисленный слот 2 интеграции; значение определяется writer-ом. Дефолтный ноль не доказывает измеренный ноль. |
+| `action_param3_int` | `Int32` | Дополнительный целочисленный слот 3 интеграции; значение определяется writer-ом. Дефолтный ноль не доказывает измеренный ноль. |
+| `action_param4_int` | `Int32` | Дополнительный целочисленный слот 4 интеграции; значение определяется writer-ом. Дефолтный ноль не доказывает измеренный ноль. |
+| `action_param5_int` | `Int32` | Дополнительный целочисленный слот 5 интеграции; значение определяется writer-ом. Дефолтный ноль не доказывает измеренный ноль. |
+| `action_param1_arrstr` | `Array(String)` | Дополнительный массив строк 1 интеграции. Не разворачивать перед суммированием расходов без сохранения зерна данных. |
+| `action_param2_arrstr` | `Array(String)` | Дополнительный массив строк 2 интеграции. Не разворачивать перед суммированием расходов без сохранения зерна данных. |
+| `action_param3_arrstr` | `Array(String)` | Дополнительный массив строк 3 интеграции. Не разворачивать перед суммированием расходов без сохранения зерна данных. |
+| `action_param1_uint32arr` | `Array(UInt32)` | Дополнительный массив числовых ID/значений по контракту интеграции; общего значения для всех платформ не установлено. |
+| `action_param1_mapstrstr` | `Map(String, String)` | Метаданные рекламы: campaign_id/name, adgroup_id/name, ad_id/name и другие ключи платформы. Название для пользователя выбирай из *_name; ключи сверяй через mapKeys. |
+| `is_from_kafka` | `Bool` | Технический путь загрузки статистики, не метрика рекламы. |
 

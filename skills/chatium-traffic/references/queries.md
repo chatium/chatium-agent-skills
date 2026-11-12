@@ -30,15 +30,15 @@ SELECT dt,
   count() AS views,
   uniqExact(sid) AS sessions,
   uniqExactIf(uid, uid != '') AS visitors,
-  uniqExactIf(user_id, ifNull(user_id, '') != '') AS users
+  uniqExactIf(user_id, ifNull(user_id, '') != '' AND user_type = 'Real') AS known_users
 FROM chatium_ai.access_log
 WHERE dt >= today() - 30
   AND ts >= now() - INTERVAL 30 DAY AND ts < now()
   AND ifNull(sid, '') != ''
   AND ifNull(ua_bot_name, '') = ''
   AND (
-    (NOT startsWith(url, 'event://')
-     AND NOT startsWith(url, 'chatium://') AND NOT startsWith(url, 'app://'))
+    ((startsWith(url, 'https://') OR startsWith(url, 'http://'))
+     AND ifNull(action, '') = '')
     OR ((startsWith(url, 'chatium://') OR startsWith(url, 'app://')
          OR startsWith(url, 'event://app/'))
         AND ifNull(action, '') IN ('', 'screen_opened'))
@@ -46,9 +46,33 @@ WHERE dt >= today() - 30
 GROUP BY dt ORDER BY dt
 ```
 
-Это просмотры с трекерной сессией, включая сотрудников. Для клиентской аудитории добавь `AND ifNull(user_account_role, '') NOT IN ('Owner','Admin','Developer','Staff')`; исключение технических путей — отдельный продуктовый фильтр. Для топа страниц используй ту же базу, `GROUP BY path ORDER BY views DESC LIMIT 30`. `path` объединяет домены, а `urlPath` сохраняет URL без query/fragment.
+Это просмотры с трекерной сессией во всём аккаунте, включая сотрудников. Фильтр веб-просмотров соответствует исследованным writers; собственные события просмотров добавляй по их контракту. Для клиентской аудитории добавь `AND ifNull(user_account_role, '') NOT IN ('Owner','Admin','Developer','Staff')`; исключение технических путей — отдельный продуктовый фильтр. Для топа страниц используй ту же базу, `GROUP BY path ORDER BY views DESC LIMIT 30`. `path` объединяет домены, а `urlPath` сохраняет URL без query/fragment.
 
 Канал «приложение» определяется не только схемой URL: учитывай также `ua_client_type = 'app'` или `startsWith(ifNull(user_agent, ''), 'Chatium/')`, чтобы включить веб-страницы внутри приложения. Добавление условия канала не заменяет фильтр просмотров.
+
+## Посещаемость конкретного сайта
+
+Согласуй домены: yowad.ru и yowad.com — один аккаунт, но отдельные сайты/хосты для такого разреза. У root-аккаунта chatium.ru могут встречаться чужие домены и CDN. Ни принадлежность аккаунту, ни непустой `session_id` не заменяют фильтр сайта.
+
+```sql
+SELECT dt,
+  count() AS pageviews,
+  uniqExact(uid) AS visitors,
+  uniqExact(sid) AS sessions,
+  uniqExactIf(user_id, user_type = 'Real' AND ifNull(user_id, '') != '') AS known_users
+FROM chatium_ai.access_log
+WHERE dt >= '2026-11-05' AND dt < '2026-11-12'
+  AND ts64 >= toDateTime64('2026-11-05 00:00:00', 3, 'Europe/Moscow')
+  AND ts64 < toDateTime64('2026-11-12 00:00:00', 3, 'Europe/Moscow')
+  AND domain = 'yowad.ru'
+  AND (startsWith(url, 'https://') OR startsWith(url, 'http://'))
+  AND ifNull(action, '') = ''
+  AND uid != '' AND ifNull(sid, '') != ''
+  AND ifNull(ua_bot_name, '') = ''
+GROUP BY dt ORDER BY dt
+```
+
+Замени домен, даты и часовой пояс на параметры задачи. Сотрудники здесь включены. Чтобы получить уникальных за весь период, убери `dt` из SELECT/GROUP BY: сумма дневных visitors/sessions не даёт уникальных за неделю. Не включай сюда `storage_file_access`, серверные `event://` события и `screen_opened` приложения без отдельного определения общей метрики.
 
 ## Активные сотрудники: Developer + Owner, остальные роли
 
@@ -65,8 +89,8 @@ WHERE dt >= today() - 30
   AND ifNull(user_id, '') != '' AND ifNull(sid, '') != ''
   AND ifNull(ua_bot_name, '') = ''
   AND (
-    (NOT startsWith(url, 'event://')
-     AND NOT startsWith(url, 'chatium://') AND NOT startsWith(url, 'app://'))
+    ((startsWith(url, 'https://') OR startsWith(url, 'http://'))
+     AND ifNull(action, '') = '')
     OR ((startsWith(url, 'chatium://') OR startsWith(url, 'app://')
          OR startsWith(url, 'event://app/'))
         AND ifNull(action, '') IN ('', 'screen_opened'))
@@ -78,6 +102,30 @@ WHERE dt >= today() - 30
 ## UTM первого просмотра сессии
 
 Возьми базовую выборку просмотров выше, сверни по `sid` с `argMin(tuple(utm_source, utm_medium, utm_campaign), ts64) AS entry_utm`, затем группируй по элементам tuple и считай сессии. Tuple сохраняет NULL первого просмотра вместо выбора следующей непустой UTM. Первый просмотр **внутри окна** может отличаться от реального начала сессии; для точной атрибуции прочитай предысторию выбранных sid в обоснованном ограниченном окне. Не суммируй дневные uniq для уникальных за месяц.
+
+```sql
+WITH sessions AS (
+  SELECT sid,
+    argMin(tuple(utm_source, utm_medium, utm_campaign), ts64) AS entry_utm
+  FROM chatium_ai.access_log
+  WHERE dt >= '2026-11-05' AND dt < '2026-11-12'
+    AND domain = 'yowad.ru'
+    AND (startsWith(url, 'https://') OR startsWith(url, 'http://'))
+    AND ifNull(action, '') = '' AND ifNull(sid, '') != ''
+    AND ifNull(ua_bot_name, '') = ''
+  GROUP BY sid
+)
+SELECT
+  ifNull(tupleElement(entry_utm, 1), '') AS source,
+  ifNull(tupleElement(entry_utm, 2), '') AS medium,
+  ifNull(tupleElement(entry_utm, 3), '') AS campaign,
+  count() AS sessions
+FROM sessions
+GROUP BY source, medium, campaign
+ORDER BY sessions DESC LIMIT 30
+```
+
+Это UTM первого наблюдаемого просмотра данного домена в окне; пустые метки называй «UTM не задана», не «прямой трафик». Для одинакового ts64 нужен дополнительный подтверждённый порядок: миллисекундная точность не гарантирует уникальность события.
 
 ## Бизнес-события и payload
 
@@ -95,9 +143,23 @@ GROUP BY dt, action ORDER BY dt
 
 Это события подключения и их аудитория, не число впервые подключившихся за всю историю. Для «новых» найди первый момент по user_id в достаточной предыстории и явно укажи глубину поиска/начало сбора. Для аудита неизвестных событий допустим ограниченный top `url, action, count()` за короткий период; он не заменяет известный реестр событий.
 
+Для сделок CRM используй их отдельный контракт из [payload событий](event-fields.md), без фильтра `sid` или домена сайта:
+
+```sql
+SELECT dt, count() AS creation_events,
+  uniqExactIf(action_param1, ifNull(action_param1, '') != '') AS created_deals
+FROM chatium_ai.access_log
+WHERE dt >= '2026-11-05' AND dt < '2026-11-12'
+  AND urlPath = 'event://crm/deal/created'
+  AND action = 'deal:created'
+GROUP BY dt ORDER BY dt
+```
+
+Это зарегистрированные события создания, а не вся текущая CRM. Старый импорт может не писать такие события; наличие истории логов и наличие записей в CRM проверяются отдельно.
+
 ## Поведение
 
-`behaviour2_log` содержит обновляемые накопительные счётчики одного просмотра: `version_ts` — версия, `ts64` — начало. Проверенное представление читает underlying table без FINAL. Перед суммированием времени/кликов проверь ключ дедупликации и выбери последнюю версию по нему; при неизвестном ключе не выдавай сырую сумму как точное время. `sid` — не ключ просмотра, в одной сессии несколько страниц. Единицы duration уточняй по сборщику, не переноси единицы `sid_duration` автоматически.
+Для duration/scroll/clicks прочитай [поведение и качество данных](behaviour.md): единицы, повторные снимки, ограничения `FINAL` и проверенный диагностический запрос. Сумма сырых накопительных счётчиков не является точным временем на сайте.
 
 ## Рекламные расходы
 
@@ -105,6 +167,7 @@ GROUP BY dt, action ORDER BY dt
 SELECT dt, platform, utm_campaign,
   sum(expense) AS expense_rub,
   sum(clicks) AS ad_clicks,
+  sum(views) AS ad_views,
   sum(impressions) AS ad_impressions
 FROM chatium_ai.traffic_source_statistics
 WHERE dt >= today() - 30 AND dt <= today() AND is_deleted = 0
@@ -113,7 +176,9 @@ ORDER BY dt, expense_rub DESC
 LIMIT 500
 ```
 
-Это календарные дни с включённым сегодня, не точные последние 720 часов: у источника дневная гранулярность. Проверенное представление уже читает `traffic_source_statistics_rmt_final`. `expense` — RUB по контракту интеграции; валютные поля сохраняй для сверки. Label источника можно брать из `action_param1_mapstrstr['ad_name']`/`['campaign_name']` с fallback на UTM и ID.
+Это календарные дни с включённым сегодня, не точные последние 720 часов: у источника дневная гранулярность. Проверенное представление уже выбирает финальные версии статистики. `expense` — RUB по контракту интеграции; валютные поля сохраняй для сверки. В проверенной интеграции Yandex Direct показы записаны в `views`, а `impressions` = 0. Выбирай метрику показов по контракту платформы; не складывай эти поля и не делай универсальный fallback без проверки. Label источника можно брать из `action_param1_mapstrstr['ad_name']`/`['campaign_name']` с fallback на UTM и ID.
+
+Если строк за период нет, отдельно проверь `min(dt)`, `max(dt)`, count за более широкое ограниченное окно: исторические расходы могут быть, а свежая синхронизация — отсутствовать. Сообщай «нет записанной статистики за период», а не «на рекламу потрачено 0». `action_param1_int = 1` у расходов означает проблему UTM, а у других таблиц/событий имеет другое значение.
 
 Для ROI/CAC сначала агрегируй события и расходы независимо, затем соединяй агрегаты. Проверенная схема access_log не содержит `matched_traffic_source_ids`; сначала DESCRIBE, и лишь при наличии используй эту атрибуцию. Иначе сопоставляй UTM + дату с явной пометкой ограниченной точности и контролем many-to-many. Не приравнивай рекламные клики к аналитическим сессиям.
 
