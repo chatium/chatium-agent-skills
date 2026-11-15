@@ -20,6 +20,11 @@ with preview checks and before/after rendering measurements.
 and Chatium Email through the public SDKs, preserves existing DNS/mail services,
 and verifies HTTPS, DNS, transport and mailbox readiness separately from test-message delivery.
 
+[chatium-mailings-launch](skills/chatium-mailings-launch/SKILL.md) prepares, tests,
+launches, stops and reports on campaigns through `@mailings/sdk`: HTML email and
+editable blocks, messengers, CRM audiences, Vault attachments and transport groups.
+It includes the complete workflow, SDK references and an HTML email shell.
+
 Skills live in `skills/chatium-<name>/SKILL.md`. Each skill has YAML frontmatter
 with a matching `name` and a `description`. `agents/openai.yaml` (Codex format) gives the menu
 label, short description and `assets/icon.svg` icon shown by Codex and Chatium Code;
