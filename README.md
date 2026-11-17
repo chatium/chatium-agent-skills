@@ -25,6 +25,10 @@ launches, stops and reports on campaigns through `@mailings/sdk`: HTML email and
 editable blocks, messengers, CRM audiences, Vault attachments and transport groups.
 It includes the complete workflow, SDK references and an HTML email shell.
 
+[chatium-creators](skills/chatium-creators/SKILL.md) guides creator onboarding,
+secure account connections, plugin registration, ZIP templates, skill descriptions
+and catalog publication requests, with manual pricing and payout guidance.
+
 Skills live in `skills/chatium-<name>/SKILL.md`. Each skill has YAML frontmatter
 with a matching `name` and a `description`. `agents/openai.yaml` (Codex format) gives the menu
 label, short description and `assets/icon.svg` icon shown by Codex and Chatium Code;
