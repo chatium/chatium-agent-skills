@@ -78,11 +78,27 @@ ID узлов, связей и шагов должны существовать.
 Перед сдачей вызови `test.mjs <process> status` на той же ветке, что выбрана
 на доске, затем `show --run <runId>` для завершённых попыток. Сверь сценарии,
 цели (блоки и связи), критерии, фактические наблюдения, артефакты и версии.
+Заверши `check --task-stage test --publish-snapshot` и проверь результат.
+Нужны все обязательные сценарии плана; успешный отдельный тест или число
+его assertions не заменяют полный набор. Не удаляй сценарий, не делай его
+необязательным и не меняй runtime на browser ради обхода недоступного адаптера.
+Для доказанной части сохрани наблюдения, для остальной — blocked/incomplete.
+Проверка подготовки текста с подставным dispatch не доказывает прохождение
+триггера, Automations, Mailings и фактического отправителя: проверяй именно
+обещанный путь, указывая границы конкретного сценария.
 Не считай этап тестирования завершённым, если отчёты остались только в чате
 или терминале. Нулевая история означает отсутствие сохранённых попыток,
 а не отсутствие когда-либо выполненных проверок. Не создавай успешный отчёт
 задним числом по воспоминанию и не приписывай старые наблюдения новой версии.
 При ошибке записи уточни сохранённое состояние по runId до повторного действия.
+
+`context` показывает эти состояния и на этапе сборки. `board.testing`
+проверяет совпадение набора сценариев, их обязательности, критериев и целей
+на доске с текущим планом. Успех части сценариев при отсутствии остальных
+не является успешным общим прогоном. Если план или исходники ещё не
+опубликованы, статусы не подтверждены; сначала синхронизируй ветку. Ошибка
+чтения истории не означает, что история пуста. Статусы тестов не заменяют
+отдельную приёмку сборки и допуск к запуску.
 
 ## Запуск
 
@@ -131,6 +147,7 @@ node <scripts>/test.mjs demo cleanup --run run-...
 `scenarios/*.mjs` экспортирует `default async function(test)`. Доступны:
 
 - `operation(name, input, requestId)` — операция с обязательным устойчивым ID;
+- `blocked(reason)` — завершить попытку как blocked с конкретным препятствием;
 - `attempt(name, input, requestId)` — то же, но возвращает blocked/uncertain для отрицательных проверок;
 - `check(criterion, ok, actual)` — проверка критерия из YAML;
 - `observe(title, summary)`, `ref(module, kind, id)`, `limitation(text)`;
@@ -148,6 +165,91 @@ node <scripts>/test.mjs demo cleanup --run run-...
 с другими входами блокируется. При pending/uncertain сначала прочитай состояние
 по сохранённым ID; новый requestId не является способом повторить неизвестную
 отправку. Прямой запуск автоматизации и запуск тестовым событием — разные сценарии.
+
+### Собственный серверный код процесса
+
+Для бронирования, отмены, переноса и других собственных операций используй
+`process.call`, `process.read`, `process.diagnostics`, `process.cleanup`.
+Это возможности Start, не отдельный устанавливаемый плагин. Сначала проверь
+их наличие через `getProcessTestCapabilities`; отсутствие возможности —
+блокировка конкретного сценария, а не отсутствие всех серверных тестов.
+
+Сценарий объявляет точные account `app.function` и закрепляет их исходники:
+
+```yaml
+capabilities: [process.call, process.read, sender.transport.send]
+sources:
+  - demo/tests/handlers.ts
+  - demo/server/bookings.ts
+handlers:
+  - {id: book, source: demo/tests/handlers.ts, route: /book, effect: write}
+  - {id: state, source: demo/tests/handlers.ts, route: /state, effect: read}
+  - {id: cleanup, source: demo/tests/handlers.ts, route: /cleanup, effect: cleanup}
+```
+
+В `.mjs`: `await test.operation('process.call', {handler: 'book', params: {...}}, 'book:one')`;
+для наблюдения — `process.read` с `handler: 'state'`. Диагностика и очистка
+имеют обычные имена `process.diagnostics` / `process.cleanup`; штатный finally
+закрывает прогон и вызывает очистку с ID `cleanup:process` и пустым input.
+
+Обёртка вызывает настоящий бизнес-обработчик, не копию его логики. Контракт входа:
+
+```ts
+import { requireProcessTestHandler, registerProcessTestResource,
+  type ProcessTestHandlerRequest } from '@start/sdk'
+import { createBooking, removeOwnedTestBooking } from '../server/bookings'
+
+export const book = app.function('/book', async (ctx, request: ProcessTestHandlerRequest, callerInfo) => {
+  const scope = await requireProcessTestHandler(ctx, request, callerInfo)
+  const booking = await createBooking(ctx, request.input, {
+    testContext: request.testContext, testRunId: scope.runId,
+  })
+  await registerProcessTestResource(ctx, request.testContext,
+    {module: 'process', kind: 'booking', id: booking.id})
+  return {id: booking.id}
+})
+
+export const cleanup = app.function('/cleanup', async (ctx, request: ProcessTestHandlerRequest, callerInfo) => {
+  const scope = await requireProcessTestHandler(ctx, request, callerInfo)
+  for (const ref of scope.resources.filter(r => r.module === 'process' && r.kind === 'booking'))
+    await removeOwnedTestBooking(ctx, ref.id, scope.runId)
+  return {cleaned: true}
+})
+```
+
+`createBooking` здесь — существующая функция процесса с явным тестовым режимом;
+она обязана проверять актуальность контекста перед эффектами, записывать
+принадлежность run и передавать контекст в jobs/SDK. `removeOwnedTestBooking`
+перед удалением проверяет run-маркер в самой записи; отсутствие уже удалённой
+фикстуры допустимо. Очистка также находит записи по run-маркеру на случай
+ошибки между созданием записи и регистрацией ресурса. Никогда не удаляй по
+одному ID из тела запроса. Read-handler читает только данные своего run.
+
+Передай в guard настоящий третий аргумент `callerInfo` от платформы.
+Dispatcher проверяет scope, объявленный handler, исходники и ветку; helper
+отклоняет прямой вызов извне Start. Account-код остаётся доверенным кодом
+разработчика, **не sandbox**: декларация не перехватывает произвольный Heap,
+HTTP, платёж или отправку. Проверь общий бизнес-обработчик и все его эффекты;
+для модулей используй guarded SDK, для своих таблиц — run-маркер и учёт
+ресурсов. Неподдержанный эффект блокируй; не вызывай боевой HTTP-маршрут
+вместо адаптера. Объяви все значимые зависимости handler в sources.
+
+При исключении после вызова запись остаётся uncertain: `reconcile:true`
+не исполняет handler повторно. Выясни исход через `process.read` и диагностику;
+при необходимости используй существующее признание неопределённости перед
+очисткой. Изменение закреплённых исходников блокирует и чтение handler, и
+вызов cleanup-кода; диагностика сохранённых квитанций остаётся доступной.
+
+### Неполная реализация сценария
+
+Сначала создай реальные `.mjs` для каждого объявленного runtime-case.
+Если проверке мешает внешний фактор, сохрани небольшой сценарий
+`export default async test => test.blocked('Конкретная причина и что нужно для продолжения')`
+и запусти его штатной командой. Это фиксирует blocked в истории и на доске.
+Не удаляй обязательные runtime-case, не меняй их на browser и не ослабляй
+критерии ради доступного инструмента. Браузерные проверки добавляются отдельно.
+Обоснованное изменение объёма требует решения владельца, а не исчезновения
+непроверенного обязательства.
 
 В конце команды прогон закрывается, исполнения/цепочки останавливаются,
 тестовые записи убираются разрешённым для модуля способом. Доставка уже принятого
@@ -182,7 +284,12 @@ node <scripts>/test.mjs demo cleanup --run run-...
 обработчика, не доставку события внешним транспортом. В коде процесса передавай
 TestContext во все действия и фоновые переходы; побочные эффекты выполняй через
 защищённые SDK. Произвольный HTTP или sandbox-платёж с обычными хуками нельзя
-считать изолированным. До поддержки безопасного адаптера такой шаг блокируется.
+считать изолированным. До поддержки безопасного адаптера такой TestContext-шаг
+блокируется. Полный платёжный путь CRM проверяй отдельным браузерным сценарием
+на явно разрешённом изолированном аккаунте с единственным sandbox-провайдером
+по [payment-testing.md](../blocks/payment-testing.md). Это настоящий проход
+CRM → Pay → CRM, с проверкой побочных эффектов и серверных результатов;
+он не выдаётся за защищённую SDK-операцию и не отменяет других runtime-case.
 Логируй runId и ID исполнения/цепочки/отправки без контактов и токенов.
 
 Для ИИ фиксируй доступные сведения о модели/настройках и использованных

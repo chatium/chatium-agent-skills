@@ -1,0 +1,5 @@
+interface:
+  display_name: "Рассылки"
+  short_description: "Контент, аудитории CRM, запуск и остановка рассылок"
+  icon_small: "./assets/icon.svg"
+  default_prompt: "Используй $chatium-mailings-launch, чтобы подготовить рассылку в моём аккаунте Chatium."

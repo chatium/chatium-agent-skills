@@ -7,7 +7,7 @@ import { readTestPlan, testStatus } from './lib/process-testing.mjs'
 //
 // Коды выхода: 0 — всё зелёное, 1 — есть провалы, 2 — не удалось запустить.
 import { prepareSnapshot, publishSnapshot } from './lib/snapshot.mjs'
-import { verifySnapshot } from './lib/freshness.mjs'
+import { verifySnapshot, readBoard, inheritedTypecheck } from './lib/freshness.mjs'
 import { codeReviewStatus } from './lib/code-review.mjs'
 import { commissionStatus } from './lib/commission.mjs'
 import { ownerDecisionStatus } from './lib/owner-decisions.mjs'
@@ -36,8 +36,10 @@ import { validateDataContracts } from './lib/data-contracts.mjs'
 import { validateMessageMedia } from './lib/message-media.mjs'
 import { validateChannelPlan, validateMessageDelivery } from './lib/message-delivery.mjs'
 import { scanJsSource, balancedObjectEnd, hasExportedGetRoute, routeDefinitionCount } from './lib/source-lex.mjs'
+import { crmUsageChecks, crmAnalyticsEvent, CRM_DEAL_EVENTS, isModuleEventUrl } from './lib/crm-contract.mjs'
 import { validateClientModules } from './lib/client-modules.mjs'
 import { internalPageErrors, needsCreativeReview } from './lib/page-mode.mjs'
+import { externalUrlForNode } from './lib/external-url.mjs'
 
 const NODE_KINDS = ['page', 'table', 'series', 'payment', 'crm', 'external', 'agent']
 const EVENT_TYPES = ['workspaceEvent', 'customerEvent']
@@ -357,6 +359,7 @@ check('map', 'Карта процесса process.yaml', ({ error, warn }) => {
     if (n?.id) ids.add(n.id)
     if (n?.stage && !stages.includes(n.stage)) error(`${where}: stage «${n.stage}» нет в stages`)
     if (n?.kind && !NODE_KINDS.includes(n.kind)) error(`${where}: kind «${n.kind}», допустимы ${NODE_KINDS.join(', ')}`)
+    try { externalUrlForNode(n) } catch (e) { error(`${where}: ${e.message}`) }
   }
   for (const [i, l] of links.entries()) {
     const where = `links[${i}] ${l?.from} → ${l?.to}`
@@ -365,7 +368,11 @@ check('map', 'Карта процесса process.yaml', ({ error, warn }) => {
     if (!l?.when) warn(`${where}: нет подписи when`)
     if (l?.signal !== undefined) {
       const m = /^event:([a-zA-Z0-9_-]+)$/.exec(String(l.signal))
-      if (!m) error(`${where}: signal должен быть вида event:<ключ>`)
+      if (isModuleEventUrl(l.signal)) {
+        if (l.signal.startsWith('event://crm/deal/') && !CRM_DEAL_EVENTS.has(l.signal))
+          error(`${where}: неизвестное событие сделки CRM ${l.signal}`)
+      }
+      else if (!m) error(`${where}: signal должен быть вида event:<ключ> или полного URL события модуля event://crm/deal/paid`)
       else if (!eventByKey.has(m[1])) error(`${where}: событие ${m[1]} не объявлено в specs/events.yaml`)
     }
     if (l?.via !== undefined) {
@@ -388,13 +395,20 @@ check('map', 'Карта процесса process.yaml', ({ error, warn }) => {
           else error(message)
         } else if (l.signal) {
           const ev = eventByKey.get(String(l.signal).replace(/^event:/, ''))
-          if (ev && !matching.some(a => (a.config?.eventUrls || []).includes(eventUrl(ev)))) {
-            error(`${where}: автоматизация ${via} не слушает ${eventUrl(ev)}`)
+          const url = isModuleEventUrl(l.signal) ? l.signal : ev && eventUrl(ev)
+          if (url && !matching.some(a => (a.config?.eventUrls || []).includes(url))) {
+            error(`${where}: автоматизация ${via} не слушает ${url}`)
           }
         }
       }
     }
   }
+})
+
+check('crm.ownership', 'Заказы и оплата через CRM', ({ error, warn }) => {
+  const result = crmUsageChecks([...codeSources].map(([file, content]) => ({ path: rel(root, file), content })))
+  result.errors.forEach(error)
+  result.warnings.forEach(warn)
 })
 
 check('owner.questions', 'Открытые вопросы владельцу', ({ error }) => {
@@ -621,7 +635,7 @@ check('events.used', 'Каждое событие кто-то пишет и кт
   }
 })
 
-check('analytics.spec', 'Связность аналитической воронки', ({ error }) => {
+check('analytics.spec', 'Связность аналитической воронки', ({ error, warn }) => {
   if (analyticsRes.missing) {
     if ([...codeSources.values()].some(source => /\bqueryAi\s*\(/.test(source)))
       error('Для собственного аналитического запроса нужен specs/analytics.yaml с вопросом владельца и реальными источниками.')
@@ -635,6 +649,12 @@ check('analytics.spec', 'Связность аналитической воро�
       funnels.length + metrics.length + ratios.length < 1 || funnels.length + metrics.length + ratios.length > 50)
     return error('analytics.yaml: нужны funnels, metrics или ratios (в сумме от 1 до 50).')
   const ids = new Set()
+  const nativeEvents = new Set()
+  const analyticsEvent = key => {
+    if (!CRM_DEAL_EVENTS.has(key)) return eventByKey.get(key)
+    nativeEvents.add(key)
+    return crmAnalyticsEvent(key)
+  }
   for (const [index, metric] of metrics.entries()) {
     const where = `analytics.metrics[${index}]${metric?.id ? ` (${metric.id})` : ''}`
     if (typeof metric?.id !== 'string' || !/^[a-z][a-z0-9_]*$/.test(metric.id) || ids.has(metric.id))
@@ -644,7 +664,7 @@ check('analytics.spec', 'Связность аналитической воро�
     if (!Array.isArray(metric?.sourceEvents) || metric.sourceEvents.length !== 1)
       error(`${where}: простая метрика должна ссылаться на одно событие; для конверсии разных событий опиши funnels.`)
     for (const key of Array.isArray(metric?.sourceEvents) ? metric.sourceEvents : [])
-      if (!eventByKey.has(key)) error(`${where}: событие ${key} не объявлено в specs/events.yaml.`)
+      if (!analyticsEvent(key)) error(`${where}: событие ${key} не объявлено в specs/events.yaml и не является известным событием CRM.`)
   }
   for (const [index, funnel] of funnels.entries()) {
     const where = `analytics.funnels[${index}]${funnel?.id ? ` (${funnel.id})` : ''}`
@@ -664,19 +684,19 @@ check('analytics.spec', 'Связность аналитической воро�
       error(`${where}: нужны от 2 до 30 разных шагов steps в порядке пути клиента.`)
     const revenue = []
     for (const key of Array.isArray(steps) ? steps : []) {
-      const event = eventByKey.get(key)
-      if (!event) error(`${where}: событие ${key} не объявлено в specs/events.yaml.`)
+      const event = analyticsEvent(key)
+      if (!event) error(`${where}: событие ${key} не объявлено в specs/events.yaml и не является известным событием CRM.`)
       else {
         if (event.type !== 'customerEvent') error(`${where}: ${key} имеет type ${event.type}; его нельзя связывать с клиентской конверсией без подтверждённой идентичности.`)
         if (funnel.identity === 'entity' && funnel.identityField &&
             event.payloadMapping?.[funnel.identityField]?.type !== 'string')
           error(`${where}: ${key} должен передавать строковый ${funnel.identityField} в payloadMapping для связи шагов одной сущности.`)
-        if (event.category === 'revenue') revenue.push(event)
+        if (event.category === 'revenue' || event.payment) revenue.push(event)
       }
     }
     if (revenue.length && (!funnel.deduplicateBy || revenue.some(event =>
       !Object.hasOwn(event.payloadMapping || {}, funnel.deduplicateBy))))
-      error(`${where}: для оплаты нужен deduplicateBy — одно поле заказа в payloadMapping каждого revenue-события.`)
+      error(`${where}: для оплаты нужен deduplicateBy — одно поле заказа в payloadMapping каждого события оплаты.`)
   }
   for (const [index, ratio] of ratios.entries()) {
     const where = `analytics.ratios[${index}]${ratio?.id ? ` (${ratio.id})` : ''}`
@@ -697,8 +717,8 @@ check('analytics.spec', 'Связность аналитической воро�
     if (ratio?.conflictRule !== 'exclude-and-report')
       error(`${where}: для взаимоисключающих исходов нужен conflictRule: exclude-and-report.`)
     for (const key of Array.isArray(denominator) ? denominator : []) {
-      const event = eventByKey.get(key)
-      if (!event) error(`${where}: событие ${key} не объявлено в specs/events.yaml.`)
+      const event = analyticsEvent(key)
+      if (!event) error(`${where}: событие ${key} не объявлено в specs/events.yaml и не является известным событием CRM.`)
       else {
         if (event.type !== 'customerEvent')
           error(`${where}: ${key} должен быть customerEvent, чтобы считать связанные исходы клиента.`)
@@ -707,6 +727,7 @@ check('analytics.spec', 'Связность аналитической воро�
       }
     }
   }
+  if (nativeEvents.size) warn('Аналитика использует события CRM: сверь актуальный getAccountEvents, принадлежность заказов процессу и контакты для identity: customer. paid включает тесты и баланс; выручка — paidMoney. Статика не подтверждает эти условия.')
 })
 
 /** Модули действий, которые импортирует хук '@automations/actions' процесса. */
@@ -752,8 +773,14 @@ check('automations', 'Автоматизации: конфиг, шаги, ссы
     }
     if (!Array.isArray(c.eventUrls)) error(`${name}: eventUrls должен быть массивом`)
     for (const url of Array.isArray(c.eventUrls) ? c.eventUrls : []) {
+      if (typeof url !== 'string') { error(`${name}: eventUrls должен содержать строки`); continue }
+      if (url.startsWith('event://crm/deal/') && !CRM_DEAL_EVENTS.has(url)) {
+        error(`${name}: неизвестное событие сделки CRM ${url}`)
+        continue
+      }
       const found = eventFromUrl(url)
-      if (!found) warn(`${name}: внешнее событие ${url} не проверяется`)
+      if (!found && !CRM_DEAL_EVENTS.has(url)) warn(`${name}: внешнее событие ${url} не проверяется`)
+      else if (!found) { /* Native CRM event; fields and process scope are verified by review. */ }
       else if (found.foreign) error(`${name}: ${url} — событие чужого воркспейса; события процесса — ${EVENT_URL_PREFIX.customerEvent}<ключ> или ${EVENT_URL_PREFIX.workspaceEvent}<ключ>`)
       else if (!found.event) error(`${name}: слушает ${url}, но события ${found.key} нет в specs/events.yaml`)
       else if (found.event.type !== found.type) error(`${name}: ${url} — у события ${found.key} type: ${found.event.type}, его URL — ${eventUrl(found.event)}`)
@@ -904,7 +931,6 @@ check('automations.refs', 'Параметры шагов ведут на сущ�
 const letterDeliveryExpectations = []
 check('letters', 'Письма шагов отправки и их переменные', ({ error, warn }) => {
   const sent = new Set()
-  const manuallyInvoked = new Set()
   const formatsByLetter = new Map()
   const requirementsByLetter = new Map()
   const channelsByLetter = new Map()
@@ -936,10 +962,6 @@ check('letters', 'Письма шагов отправки и их переме�
         channelFormatsByLetter.set(message.path, plan.formatById)
       }
     }
-    const manual = spec.data?.deliveryMode === 'manual' &&
-      ['caller', 'trigger', 'recipient', 'stop'].every(field => typeof spec.data.manualInvocation?.[field] === 'string' && spec.data.manualInvocation[field].trim())
-    if (manual) for (const message of spec.data.messages || []) if (typeof message.path === 'string')
-      manuallyInvoked.add(message.path)
   }
   for (const { automation, step } of sendSteps) {
     const where = `${rel(root, automation.file)} шаг ${step.id}`
@@ -1039,8 +1061,8 @@ check('letters', 'Письма шагов отправки и их переме�
       if (!v?.name || !v?.description) error(`${p}: у переменной нет name или description`)
       else if (!used.has(v.name)) warn(`${p}: переменная ${v.name} объявлена, но не используется`)
     }
-    if (!sent.has(p) && !manuallyInvoked.has(p)) {
-      const message = `${p}: письмо не отправляет ни один шаг автоматизации и нет ручного контракта запуска`
+    if (!sent.has(p)) {
+      const message = `${p}: письмо не отправляет ни один шаг автоматизации`
       if (options['task-stage'] === 'design' && formatsByLetter.has(basePath)) warn(`${message}; подключение проверяется на этапе сборки`)
       else error(message)
     }
@@ -1048,13 +1070,28 @@ check('letters', 'Письма шагов отправки и их переме�
 })
 
 
-check('letters.transport', 'Отправка через SDK Mailings', ({ error, warn }) => {
+check('letters.transport', 'Маршрут шаблонов через Automations и Mailings', ({ error, warn }) => {
+  for (const node of nodes.filter(node => node?.kind === 'series')) {
+    const source = norm(node.source)
+    const steps = sendSteps.filter(({ step }) => {
+      try { return templatePath(step)?.startsWith(`${source}/`) }
+      catch { return false } // The letters check reports the invalid key.
+    })
+    if (!steps.length) {
+      const message = `${node.id}: нет шага Automations с messageKey для серии ${source}; прямой Sender или jobs не заменяют рассылку`
+      if (options['task-stage'] === 'design') warn(`${message}; подключение проверяется на этапе сборки`)
+      else error(message)
+    }
+  }
+  for (const automation of new Set(sendSteps.map(item => item.automation)))
+    if (!Array.isArray(automation.config?.eventUrls) || !automation.config.eventUrls.some(url => typeof url === 'string' && url.trim()))
+      error(`${rel(root, automation.file)}: отправка шаблонов требует триггер в eventUrls для истории исполнения`)
   if (sendSteps.some(({ step }) => 'letterPath' in step.params))
     warn('Есть прежние шаги letterPath: сохраните их до явного перехода на messageKey и SDK Mailings')
   for (const [file, src] of codeSources) {
     if (/readLetterFn|read-letter/.test(src)) warn(`${rel(root, file)}: прежний читатель писем; при переходе замените на readMessageFile из @mailings/sdk`)
   }
-  if (!sendSteps.some(({ step }) => 'messageKey' in step.params)) return
+  if (!sendSteps.some(({ step }) => 'messageKey' in step.params) && !nodes.some(node => node?.kind === 'series')) return
   const ws = JSON.parse(readFileSync(join(dir, '.workspace.json'), 'utf8'))
   const policy = ws.config?.mailings
   if (!policy || typeof policy.testOnly !== 'boolean') return error('Нужен config.mailings.testOnly (boolean) в .workspace.json')
@@ -1166,8 +1203,22 @@ if (options['task-stage'] === 'launch') check('owner.launch', 'Решение о
   if (decision.status !== 'ready') error(decision.error || decision.status)
   else if (decision.authority === 'delegated-test') warn('Разрешён только учебный testOnly-запуск; для боевого нужен ответ владельца.')
 })
+let testingReport = { status: 'not-checked', cases: [], errors: [], syncErrors: [] }
+try {
+  if (['test', 'launch'].includes(options['task-stage']))
+    testingReport = testStatus({ root, slug, map, remote: true })
+  else if (!options['no-snapshot'] && isFile(join(dir, 'tests/plan.yaml'))) {
+    const plan = readTestPlan(root, slug, map)
+    testingReport = plan.cases.length ? testStatus({ root, slug, map, remote: true })
+      : { status: 'not-planned', cases: [], errors: [], syncErrors: [] }
+  }
+} catch (cause) { testingReport = { status: 'unavailable', cases: [], errors: [cause.message], syncErrors: [] } }
 if (['test', 'launch'].includes(options['task-stage'])) check('process.testing', 'Тестирование текущей версии процесса', ({ error }) => {
-  for (const issue of testStatus({ root, slug, map, remote: true }).errors) error(issue)
+  for (const issue of testingReport.errors) error(issue)
+})
+if (!options['no-snapshot']) check('board.testing', 'Сценарии на доске соответствуют плану', ({ error }) => {
+  for (const issue of testingReport.syncErrors) error(issue)
+  if (testingReport.status === 'unavailable') error(`Статусы тестирования не подтверждены: ${testingReport.errors.join('; ')}`)
 })
 
 check('skill.clean', 'В скилле нет кода и файлов воркспейса', ({ error }) => {
@@ -1198,11 +1249,23 @@ if (options.typecheck) {
 let snapshotResult = { saved: false, skipped: Boolean(options['no-snapshot']) }
 try {
   if (!options['no-snapshot'] || options['snapshot-file']) {
-    const snapshot = prepareSnapshot({ root, slug, map, checks,
+    const prepare = () => prepareSnapshot({ root, slug, map, checks,
       allowInvalidMap: !options['publish-snapshot'], ...(sourceState ? { state: sourceState } : {}) })
+    let snapshot = prepare(), previous
+    if (!options['no-snapshot'] && !options.typecheck) {
+      previous = await readBoard(root, snapshot, { usage: 'check' })
+      const actual = previous?.snapshot?.snapshot
+      if (!sourceError) try { assertLocalState(root, sourceState) } catch (cause) { sourceError = cause }
+      if (!sourceError && actual?.processPath === slug && actual.branch === snapshot.branch) {
+        const typecheck = inheritedTypecheck(snapshot, actual)
+        if (typecheck) { checks.push(typecheck); snapshot = prepare() }
+      }
+    }
     if (options['snapshot-file']) writeFileSync(options['snapshot-file'], JSON.stringify(snapshot, null, 2) + '\n')
+    const verification = { taskStage: options['task-stage'] || 'build', knowledgeStage }
     if (!options['publish-snapshot']) {
-      snapshotResult = { saved: false, ...await verifySnapshot(root, snapshot) }
+      snapshotResult = { saved: false, ...await verifySnapshot(root, snapshot,
+        { ...verification, ...(previous ? { reader: async () => previous } : {}) }) }
       if (sourceError) {
         if (snapshotResult.verified) throw sourceError
         snapshotResult.localError = sourceError.message
@@ -1211,12 +1274,17 @@ try {
       if (sourceError) throw sourceError
       snapshotResult = await publishSnapshot(root, snapshot)
       snapshotResult = { ...snapshotResult, ...await verifySnapshot(root, snapshot,
-        { expectedRevision: snapshotResult.revision }) }
+        { ...verification, expectedRevision: snapshotResult.revision }) }
     }
   }
 } catch (e) {
   snapshotResult = { ...snapshotResult, verified: false, status: e instanceof SnapshotDrift ? 'stale' : 'unavailable', error: e.message }
 }
+if (!options['no-snapshot']) check('board.status', 'Статусы блоков и приёмка синхронизированы с доской', ({ error }) => {
+  const construction = snapshotResult.construction
+  if (!construction) return error('Статусы сборки на доске не подтверждены. Прочитайте доску и устраните причину недоступности.')
+  for (const issue of construction.errors) error(issue)
+})
 if (options['task-stage'] === 'launch') check('owner.launch.board', 'Согласование текущей доски владельцем', ({ error }) => {
   if (!snapshotResult.verified) return error('Нельзя подтвердить показанную владельцу доску без актуального снимка.')
   const decision = ownerDecisionStatus({ root, slug, kind: 'launch', currentBoardRevision: snapshotResult.boardRevision })
@@ -1246,7 +1314,7 @@ const warnCount = checks.reduce((s, c) => s + c.warnings.length, 0)
 
 if (options.json) {
   const { elements, ...snapshotSummary } = snapshotResult
-  console.log(JSON.stringify({ process: slug, root, passed, total, checks, snapshot: snapshotSummary }, null, 2))
+  console.log(JSON.stringify({ process: slug, root, passed, total, checks, snapshot: snapshotSummary, testing: testingReport }, null, 2))
 } else {
   console.log(`check ${slug}`)
   for (const c of checks) {
@@ -1264,5 +1332,8 @@ if (!options.json) {
   console.log(snapshotResult.verified
     ? `Карта актуальна: ${snapshotResult.branch} @ ${snapshotResult.commit}; снимок ${snapshotResult.revision}, доска ${snapshotResult.boardRevision}.`
     : snapshotResult.error || 'Актуальность карты не проверялась (--no-snapshot).')
+  for (const node of snapshotResult.construction?.nodes || [])
+    console.log(`  ${node.id}: доска ${node.actual}; текущая приёмка ${node.expected}. ${node.reason}`)
+  for (const command of snapshotResult.construction?.next || []) console.log(`Сверка: ${command}`)
 }
 process.exitCode = snapshotResult.status === 'stale' ? 1 : snapshotResult.error ? 2 : passed !== total ? 1 : 0

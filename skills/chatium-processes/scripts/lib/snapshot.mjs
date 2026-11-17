@@ -8,6 +8,7 @@ import { parseYaml } from './yaml.mjs'
 import { git, gitState, assertPublishedState, SnapshotDrift } from './git-state.mjs'
 import { collectBuildEvidence } from './build-evidence.mjs'
 import { resolveBuildState } from './build-state.mjs'
+import { externalUrlForNode } from './external-url.mjs'
 
 function safePath(root, value) {
   if (typeof value !== 'string' || !value || value.startsWith('/') || value.includes('\\') || value.replace(/\/$/, '').split('/').some(p => !p || p === '.' || p === '..')) throw Error('Некорректный относительный путь источника снимка.')
@@ -74,6 +75,7 @@ export function buildSnapshot({ root, slug, map, checks, branch, commit, checked
   const evidence = buildEvidence || collectBuildEvidence({ root, slug, map, checks })
   const build = { ...evidence.assessment, checkedCommit: commit, checkedAt }
   const nodes = map.nodes.map(node => {
+    const externalUrl = externalUrlForNode(node)
     const source = safePath(root, node.source)
     const agentPath = node.source.endsWith('.agent.json') ? node.source : undefined
     if (node.agentId !== undefined && (!agentPath || typeof node.agentId !== 'string' || !node.agentId.trim() || node.agentId.length > 200 || /[\u0000-\u001f]/.test(node.agentId))) throw Error('agentId допустим только для исходника .agent.json и должен быть непустой строкой до 200 символов.')
@@ -86,6 +88,7 @@ export function buildSnapshot({ root, slug, map, checks, branch, commit, checked
     }) : undefined
     return { id: node.id, stage: node.stage, kind: node.kind, title: node.title, purpose: node.purpose || '', source: node.source,
       ...state, build: facts,
+      ...(externalUrl !== undefined ? { externalUrl } : {}),
       ...(agentPath ? { agent: { path: agentPath, ...(node.agentId ? { id: node.agentId } : {}) } } : {}), ...(letters ? { letters } : {}) }
   })
   const links = (map.links || []).map((link, i) => {
@@ -109,9 +112,9 @@ export function buildSnapshot({ root, slug, map, checks, branch, commit, checked
 export function prepareSnapshot({ root, slug, map, checks, state = gitState(root), allowInvalidMap = false }) {
   return buildSnapshot({ root, slug, map, checks, ...state, allowInvalidMap })
 }
-export async function startExec(root, sdkCode, expectedCommit) {
+export async function startExec(root, sdkCode, expectedCommit, { write = false } = {}) {
   // Use the public CLI entrypoint, including the image's supported wrapper.
-  const r = spawnSync('chatium', ['exec'], { cwd: root, input: sdkCode, encoding: 'utf8', timeout: 45_000, maxBuffer: 4 * 1024 * 1024 })
+  const r = spawnSync('chatium', ['exec', ...(write ? ['--write'] : [])], { cwd: root, input: sdkCode, encoding: 'utf8', timeout: 45_000, maxBuffer: 4 * 1024 * 1024 })
   if (r.error || r.status !== 0) throw Error(`Не удалось выполнить chatium exec: ${r.error?.message || r.stderr.trim()}`)
   if (expectedCommit) {
     const executed = r.stderr.match(/^Executed commit: ([0-9a-f]{40})$/m)?.[1]
@@ -132,7 +135,7 @@ export async function publishSnapshot(root, snapshot) {
   if (payload.length > 250_000) throw Error('Снимок превышает предел сервера: 250 000 символов JSON. Сократите карту или диагностику.')
   assertPublishedState(root, snapshot)
   const saved = await startExec(root,
-    `import { writeProcessSnapshot } from '@start/sdk'\nreturn await writeProcessSnapshot(ctx, ${payload})`, snapshot.commit)
+    `import { writeProcessSnapshot } from '@start/sdk'\nreturn await writeProcessSnapshot(ctx, ${payload})`, snapshot.commit, { write: true })
   if (!saved?.saved) throw Error(`Снимок не сохранён: ${saved?.reason || 'SDK вернул неожиданный ответ'}`)
   if (!Number.isInteger(saved.revision) || saved.revision < 1) throw Error('SDK вернул некорректную ревизию снимка.')
   return { saved: true, revision: saved.revision }

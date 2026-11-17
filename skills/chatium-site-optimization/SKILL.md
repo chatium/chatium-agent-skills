@@ -1,6 +1,6 @@
 ---
 name: chatium-site-optimization
-description: "Оптимизация рендеринга существующих сайтов Chatium: миграция браузерных скриптов Tailwind и Font Awesome, включение Vue SSR и сборка Google Fonts. Использовать при медленном первом отображении страницы или соответствующих предупреждениях Source Build при push."
+description: "Оптимизация рендеринга существующих сайтов Chatium: миграция браузерных скриптов Tailwind и Font Awesome, включение Vue SSR, сборка Google Fonts и оптимизация изображений через Sharp. Использовать при медленном первом отображении страницы или соответствующих предупреждениях Source Build при push."
 ---
 
 # Site rendering optimization
@@ -9,13 +9,13 @@ Improve the requested site's first render while preserving its design and behavi
 
 ## 1. Establish scope and baseline
 
-For a general request to speed up a site, assess all four optimization branches. For a specific migration, limit the work to that branch and changes necessary to preserve its behavior; report independent opportunities without implementing them.
+For a general request to speed up a site, assess all five optimization branches. For a specific migration, limit the work to that branch and changes necessary to preserve its behavior; report independent opportunities without implementing them.
 
 Identify the requested site's routes, page shells, Vue islands and shared dependencies in the available checkout. If the target is ambiguous, show the candidate sites and ask which one. Include shared components within the site; identify consumers outside it and resolve that scope before changing them. Continue independent work while a decision is pending.
 
 Inventory all scoped pages, including HTML strings, legacy files, dynamic content and external components. For each in-scope optimization record the affected pages and whether to migrate, retain with a reason, or resolve a decision. Push warnings are clues, not a complete inventory.
 
-Before changing rendering, follow [Rendering measurements](references/measurement.md): prepare the bundled tools, pin the baseline preview and record the comparison routes. Install missing measurement dependencies in the service cache using the provided setup script; use the documented PageSpeed/browser fallback when preparation is unavailable.
+Before changing rendering, follow [Rendering measurements](references/measurement.md): prepare the bundled tools, pin the baseline preview and record the comparison routes. Reuse installed tools and prepare missing dependencies outside the customer project; use the documented PageSpeed/browser fallback when preparation is unavailable.
 
 Capture the starting revision, URLs (including real ids/query parameters), roles, data, desktop/mobile viewports and affected interactive states. Take baseline screenshots and record console/network behavior. Choose measurement routes covering each distinct shell and changed rendering path; record missing access as a verification gap.
 
@@ -28,6 +28,7 @@ Read only the references for applicable branches within the agreed scope:
 - Tailwind Play/browser script, inline configuration or `text/tailwindcss`: [Tailwind migration](references/tailwind.md).
 - Font Awesome stylesheet/kit or names assembled or loaded from data: [Font Awesome migration](references/fontawesome.md).
 - Vue content absent from the first response: [SSR adaptation](references/ssr.md).
+- Heavy or oversized images, including the LCP image: [Image optimization with Sharp](references/images.md).
 - Google Fonts request chains, unused font styles or resource competition after SSR: [Fonts and resources](references/google-fonts.md).
 
 When both are in scope, resolve blocking stylesheet work before evaluating SSR's benefit. Apply compatible changes in the user's scope; ask about substantial data-loading/architecture rewrites rather than silently expanding the migration. Preserve unsupported cases as explicit exceptions. Automatic minification and resource bundling need no invented customer flags.

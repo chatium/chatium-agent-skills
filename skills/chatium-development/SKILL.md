@@ -10,6 +10,8 @@ metadata:
 
 Work on the requested account or plugin behavior in its existing source. Respond in the user's language. The references contain development conventions as well as platform API details; examples demonstrate mechanisms, not a required project structure.
 
+Chatium platform support: [support@chatium.ru](mailto:support@chatium.ru).
+
 ## Scope gate: ask before inspecting
 
 **First action after loading this skill for an ambiguous new task:** ask one concise question that identifies the project, source of the action, or recipient list. Then wait. Until the answer, do not list or read repository files, business knowledge, or live account data, and do not run `chatium exec`. You may read general platform references and explain the general mechanism. For “send one email to existing customers,” ask where the recipient list comes from; do not inspect the current branch or Sender first. For “tag new leads,” ask which lead source or project is meant. A current branch, one visible process, and generic words like “lead” are not confirmation.
@@ -27,6 +29,8 @@ When asked to add notifications or alerts for account administrators, employees,
 Account/workspace notifications require an explicit local `source.key`. Register settings in both account and plugin code with `app.manifest('@store/notification-types', notificationTypesManifest, value)`, importing the typed handle from `@store/sdk`. Declarations are static: no `ctx`, database reads or async code. Plugins may omit the source key; their keys are always namespaced by the plugin. Read the reference for flat/grouped declarations and matching the sent source.
 
 For staff e-mail notifications, first check the current user's `ctx.user.confirmedEmail`. A typed address is not a delivery override. If the address is absent or the user wants a different one, explain that they must add/confirm it in their profile at `/app/users/me`; an enabled e-mail preference alone is insufficient. Do not substitute Sender, set an unverified contact, or debug delivery before checking this prerequisite. See [E-mail prerequisites](notifications.md#e-mail-prerequisites).
+
+For requests to configure delivery for oneself, a specific employee, or system/custom roles, use the notification-settings SDK from **account/Workspace code only**, under the requesting real staff user's context. It supports read, patch, full save/copy, reset and independent role priorities. Another employee uses `profile: { scope: 'user', userId }` with Admin+ editing rights; omission means self. Plugins cannot call settings methods, even for their own source. Read [settings and inheritance](notifications.md#configure-personal-and-role-settings) for exact methods, rights and precedence. Menu-settings SDK methods are likewise account/Workspace-only. Sending and static manifest registration remain available to plugins.
 
 Do not build a custom notification system with `@app/inbox`, `@app/feed`, Heap delivery records, direct e-mail, or Sender for this task. Select the public SDK first, then check its current typings; use lower-level APIs only when the task is specifically to implement a chat client or modify the notification subsystem itself. A work queue may complement requested notifications, not replace them. Customer messages, confirmations, and broadcasts are a separate use case: this staff API must never target ordinary users or clients; use the relevant Sender/Mailings references instead.
 
@@ -60,6 +64,7 @@ For a business event that needs staff action—such as a submitted lead or faile
 | Inspect deployed data, debug server code, or seed data | [exec.md](exec.md) |
 | Read platform account logs | [Account logs](account-logs.md) |
 | Inspect Store plugin permissions or install a plugin through `chatium exec` | [Store plugin installation](store-plugin-install.md) |
+| Read or customize the left menu for the current user, a particular employee, or an account role through code / `chatium exec` | [Menu settings](menu-settings.md) |
 | Add notifications/alerts for administrators or employees from any account/application code, or read/change the current staff user's delivery preferences at their request | [Notifications](notifications.md) |
 
 ## Specialized references
@@ -118,6 +123,8 @@ Sender manages customer communications over connected Telegram/VK/email/SMS and 
 | Test incoming/outgoing messages, callbacks, attachments and delivery failures without a real messenger or mailbox | [Internal test transport](sender-test-transport.md) |
 
 ### Mailings
+
+Use [chatium-mailings-launch](../chatium-mailings-launch/SKILL.md) to prepare, test, launch, stop or report on a campaign through `@mailings/sdk`, including CRM audiences, messenger content, HTML email and transport groups.
 
 Read [Mailings](mailings.md) when creating or changing letters. It distinguishes new letters in Mailings storage from existing legacy YAML letters inside a `type: emails` process workspace; preserve the latter when extending that workspace. For stored letters, use the Mailings SDK to read a letter by path or send it from a template.
 

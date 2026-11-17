@@ -76,10 +76,12 @@ export function makeArchitectureReviewPacket({ root, slug, skillDir = SKILL_DIR 
   const sourceInventory = { path: `${slug}/architecture-source-inventory.txt`,
     content: `Исходники API, инструментов и таблиц (включая вспомогательные):\n${sourcePaths.map(path => `- ${path}`).join('\n')}\n` }
   const siteFile = specFiles.find(file => file.path === `${slug}/specs/site.yaml`)
+  let map
+  try { map = parseYaml(readFileSync(join(root, slug, 'process.yaml'), 'utf8')) }
+  catch { /* Invalid YAML remains visible in the packet and is reported by check. */ }
   let siteFormNodes = []
   if (siteFile) try {
     const site = parseYaml(siteFile.content)
-    const map = parseYaml(readFileSync(join(root, slug, 'process.yaml'), 'utf8'))
     const formPages = new Set((Array.isArray(site?.forms) ? site.forms : []).map(form => form?.page))
     siteFormNodes = (Array.isArray(map?.nodes) ? map.nodes : [])
       .filter(node => node?.kind === 'page' && /^[a-zA-Z0-9_-]+$/.test(node.id) &&
@@ -93,7 +95,7 @@ export function makeArchitectureReviewPacket({ root, slug, skillDir = SKILL_DIR 
     return [{ path: `${slug}/creative/${node.id}/spec.yaml`, content: readFileSync(path, 'utf8') }]
   })
   const rubric = JSON.parse(readFileSync(join(skillDir, 'build/architecture-review-questions.json'), 'utf8'))
-  if (rubric.version !== 13 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
+  if (rubric.version !== 14 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
       new Set(rubric.questions.map(question => question.id)).size !== rubric.questions.length ||
       rubric.questions.some(question => typeof question.id !== 'string' || !question.id ||
         typeof question.question !== 'string' || !question.question))
@@ -145,7 +147,11 @@ export function makeArchitectureReviewPacket({ root, slug, skillDir = SKILL_DIR 
     ...(workspaceFile ? [workspaceFile] : []), ...specFiles, sourceInventory, ...siteCreativeFiles, ...taskFiles,
     ...riskDecisions.map(({ path, content }) => ({ path, content }))]
       .sort((a, b) => a.path.localeCompare(b.path)), staticChecks: knowledge.checks }
-  return withReferenceLibrary(base, collectReferenceLibrary({ root, slug, stage: 'architecture', skillDir }))
+  return withReferenceLibrary(base, collectReferenceLibrary({ root, slug, stage: 'architecture', skillDir,
+    requiredReferences: (Array.isArray(map?.nodes) ? map.nodes : []).some(node =>
+      node?.kind === 'series' || typeof node?.source === 'string' && node.source.startsWith('.mailings/storage/')) ? [
+        'skills/chatium-processes/blocks/message-series.md', 'skills/chatium-processes/blocks/automation.md',
+      ] : [] }))
 }
 
 export function recordArchitectureReview({ root, slug, packet, report, agentReference, packetDirectory, skillDir = SKILL_DIR }) {
