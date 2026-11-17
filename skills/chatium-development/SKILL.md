@@ -20,6 +20,17 @@ Use `processes` only for a confirmed change to an existing process or a genuinel
 
 Before working in a workspace or isolated module, read its `.CHATIUM-LLM.md` if present. When changing architecture, key functionality, or substantial project decisions, create or update that file, integrating information into its existing sections. Do not create a document per component or require documentation changes for a question-only response.
 
+## Publishing reusable solutions in the catalog
+
+When the user wants to publish/share a plugin, ZIP template or skill package for other
+Chatium accounts, use [chatium-creators](../chatium-creators/SKILL.md). This includes
+ambiguous wording such as «выложить в стор/магазин», «разместить в каталоге»,
+«тиражировать решение», «опубликовать скилл» and updates to a creator profile/card.
+Distinguish catalog distribution from launching the account's own website when intent
+is unclear. The creator skill covers registration, explicit account/user binding,
+packaging, account-only SDK operations and publication requests. Ordinary development
+continues here; installing someone else's plugin uses the installation reference below.
+
 ## Notifications for staff and administrators
 
 For **receiving staff notifications in code**, read [Notification handlers](notification-handlers.md): typed static manifests declare app.function destinations; the current staff user explicitly selects them via UI/SDK. It is not a separate producer API or a replacement for `sendNotification`.
