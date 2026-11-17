@@ -1,20 +1,20 @@
 # Rendering measurements
 
-Use the bundled Lighthouse runner for repeatable public-page comparisons. It owns installation, URL construction, run ordering and aggregation; use the browser separately for visual and interaction checks.
+Use the bundled Lighthouse runner for repeatable public-page comparisons. It owns URL construction, run ordering and aggregation; use the browser separately for visual and interaction checks.
 
 ## Prepare tools once
 
-Resolve `SKILL_DIR` to this skill's installed directory. Run:
+Prepare the environment yourself. First check for globally installed Lighthouse (`command -v lighthouse`, `lighthouse --version`; for npm installations, `npm root -g`). Reuse that package. Check existing `puppeteer-core` and Chrome/Chromium as well, including available service caches. Install only missing tools using the environment's package manager and permissions, in a writable service directory outside the customer's project. Reuse an installed browser before downloading one. Keep the chosen tool versions unchanged throughout the comparison; use a Node version compatible with them. The runner accepts Lighthouse 13.x and puppeteer-core 25.x, checking only the major version. Exact versions and paths are recorded in each comparison; baseline and candidate use the same loaded installation. Use puppeteer-core with the existing browser, without a bundled Chrome download.
 
-```sh
-node "$SKILL_DIR/scripts/setup.mjs" check
-# If tools are missing, install them within the environment's permissions:
-node "$SKILL_DIR/scripts/setup.mjs" install
-```
+Resolve `SKILL_DIR` to this skill's directory and configure these environment variables when running measurements:
 
-The installer uses the bundled lockfile in a versioned service cache outside the customer project. `CHATIUM_PERF_CACHE` explicitly selects a cache root. Otherwise setup probes writable locations: `/data/external/perf-cache` when `/data/external` exists, then the home cache, then the system temporary directory. Reuse the reported cache across tasks. Setup first searches for installed Chrome/Chromium on `PATH` and standard macOS application paths; `CHROME_PATH` overrides discovery. It reuses a cached Puppeteer browser next and downloads the pinned browser only if neither is available. Installation does not alter the customer's dependencies or the system browser. Node must satisfy `scripts/package.json`; use an available compatible runtime if needed.
+- `LIGHTHOUSE_DIR` (optional override): absolute Lighthouse package directory containing its `package.json`, not the CLI executable or the parent `node_modules` directory.
+- `PUPPETEER_CORE_DIR` (optional override): absolute puppeteer-core package directory containing its `package.json`.
+- `CHROME_PATH`: absolute executable path to the selected Chrome/Chromium.
 
-Done when `check` launches Chrome and reports tool versions. If installation, downloads or browser launch fail, retain the error and follow the fallback below. Respect sandbox restrictions; an available browser tool does not imply a browser executable is available to shell commands.
+A global CLI may be a symlink or wrapper; resolve its actual package installation. Node does not automatically import globally installed npm packages. Without explicit package directories, the runner resolves packages with `createRequire(import.meta.url).resolve(...)`, which honors `NODE_PATH`, then imports the resolved file URLs. If the global module root is not already on `NODE_PATH`, expose the discovered root when launching Node. The runner never installs packages or downloads a browser. On Linux it launches Chromium with `--no-sandbox --disable-dev-shm-usage` for the agent VM/bwrap environment; other platforms keep the browser defaults.
+
+Before the final series, run a one-run diagnostic with the same tools to verify browser launch and report compatibility. Done when that diagnostic succeeds. If preparation or launch fails, retain the actual error and follow the fallback below. Respect sandbox restrictions; an available browser tool does not imply a browser executable is available to shell commands.
 
 ## Pin the comparison
 
@@ -57,7 +57,7 @@ The output directory must be new. The runner alternates baseline/candidate order
 
 For additional programmatic analysis, each `*.resources.json` is an array of `{url, type, transferBytes, status, cache}`, sorted by transferred bytes. Missing values may be null or omitted; inspect the file before processing it. These normalized field names differ from the raw Lighthouse network audit.
 
-Use one run for diagnostics and at least three per version/profile for final evidence. With conflicting results, run a new series of five per side and keep both series. If the effect remains within the observed variability, report it as inconclusive. These small samples do not establish statistical significance. Avoid competing builds/audits during measurement. A cold browser cache does not imply a cold CDN/server cache; keep server warm-up conditions comparable and report known differences.
+Use one run for diagnostics and at least three per version/profile for final evidence. With conflicting results, run a new series of five per side and keep both series. If the effect remains within the observed variability, report it as inconclusive. These small samples do not establish statistical significance. Finish image encoding before measurement; avoid competing builds, encoders and audits during the series. A cold browser cache does not imply a cold CDN/server cache; keep server warm-up conditions comparable and report known differences.
 
 Inspect the report screenshots and resource URLs before accepting a series. Preflight HTML checks alone cannot prove the subsequent audit saw the same deployment. An error/warning produces an invalid run and prevents aggregation of that group; resolve the cause and rerun the complete affected comparison rather than selecting successful samples. Exit success means collection succeeded, not that the site became faster or passed functional checks.
 

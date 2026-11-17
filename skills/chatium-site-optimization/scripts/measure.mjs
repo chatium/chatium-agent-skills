@@ -1,7 +1,55 @@
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { resolve, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { loadTools } from './setup.mjs';
+import { readFileSync, writeFileSync, mkdirSync, accessSync, statSync, existsSync, constants } from 'node:fs';
+import { resolve, join, isAbsolute, dirname } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
+
+// CJS resolution honors NODE_PATH; ESM imports use the resolved file URL.
+export function resolveTool(name, major, directory) {
+  if (directory && !isAbsolute(directory)) throw new Error(`${name} directory must be an absolute path.`);
+  let entry;
+  try {
+    entry = directory
+      ? createRequire(join(directory, 'package.json')).resolve(name)
+      : createRequire(import.meta.url).resolve(name);
+  } catch (error) {
+    throw new Error(`Cannot resolve ${name}; reuse its installed package via NODE_PATH or an explicit package directory. ${error.message}`);
+  }
+  let root = directory || dirname(entry);
+  while (true) {
+    const json = join(root, 'package.json');
+    if (existsSync(json)) {
+      const metadata = JSON.parse(readFileSync(json, 'utf8'));
+      if (metadata.name === name) {
+        if (Number(metadata.version.split('.')[0]) !== major) throw new Error(`Expected ${name}@${major}.x, found ${metadata.version} at ${root}`);
+        return { entry, path: root, version: metadata.version };
+      }
+      if (directory) throw new Error(`Expected ${name} package at ${directory}`);
+    }
+    const parent = dirname(root);
+    if (directory || parent === root) throw new Error(`Cannot find ${name} package metadata for ${entry}`);
+    root = parent;
+  }
+}
+
+export function browserLaunchOptions(executablePath, platform = process.platform) {
+  return { executablePath, headless: true,
+    ...(platform === 'linux' ? { args: ['--no-sandbox', '--disable-dev-shm-usage'] } : {}),
+  };
+}
+
+// Environment preparation belongs to the agent; this runner only loads tools.
+export async function loadTools(env = process.env) {
+  if (!env.CHROME_PATH || !isAbsolute(env.CHROME_PATH)) throw new Error('Set CHROME_PATH to an absolute browser executable path.');
+  const lh = resolveTool('lighthouse', 13, env.LIGHTHOUSE_DIR);
+  const pp = resolveTool('puppeteer-core', 25, env.PUPPETEER_CORE_DIR);
+  accessSync(env.CHROME_PATH, constants.X_OK);
+  if (!statSync(env.CHROME_PATH).isFile()) throw new Error('CHROME_PATH must point to a browser executable.');
+  const { default: lighthouse } = await import(pathToFileURL(lh.entry).href);
+  const { default: puppeteer } = await import(pathToFileURL(pp.entry).href);
+  const { default: desktopConfig } = await import(pathToFileURL(join(lh.path, 'core/config/desktop-config.js')).href);
+  const toolVersions = { lighthouse: { version: lh.version, path: lh.path }, 'puppeteer-core': { version: pp.version, path: pp.path } };
+  return { lighthouse, puppeteer, desktopConfig, executablePath: env.CHROME_PATH, toolVersions };
+}
 
 const metricIds = { fcpMs: 'first-contentful-paint', lcpMs: 'largest-contentful-paint', tbtMs: 'total-blocking-time', cls: 'cumulative-layout-shift', speedIndexMs: 'speed-index', bytes: 'total-byte-weight' };
 
@@ -104,7 +152,7 @@ async function audit(tools, config, route, profile, side, index, out) {
     if (!response.ok || !samePage(response.url, url)) throw new Error(`Preflight returned ${response.status} at ${response.url}; check canonical URL and preview access.`);
     for (const marker of route[`${side}HtmlIncludes`]) if (!html.includes(marker)) throw new Error(`Preflight missing expected HTML/build marker: ${marker}`);
     writeFileSync(join(out, `${prefix}.html-response`), html);
-    browser = await tools.puppeteer.launch({ executablePath: tools.executablePath, headless: true });
+    browser = await tools.puppeteer.launch(browserLaunchOptions(tools.executablePath));
     record.chrome = await browser.version();
     const port = Number(new URL(browser.wsEndpoint()).port);
     const result = await tools.lighthouse(url, {
@@ -151,7 +199,7 @@ export async function compare(config, out) {
   validate(config);
   const tools = await loadTools();
   mkdirSync(out); // Refuse to overwrite evidence from an earlier revision.
-  writeFileSync(join(out, 'manifest.json'), JSON.stringify({ config, node: process.version, platform: process.platform, arch: process.arch, executablePath: tools.executablePath, createdAt: new Date().toISOString() }, null, 2));
+  writeFileSync(join(out, 'manifest.json'), JSON.stringify({ config, node: process.version, platform: process.platform, arch: process.arch, executablePath: tools.executablePath, tools: tools.toolVersions, createdAt: new Date().toISOString() }, null, 2));
   const records = [];
   for (const route of config.routes) for (const profile of config.profiles) for (let i = 1; i <= config.runs; i++) {
     for (const side of i % 2 ? ['baseline', 'candidate'] : ['candidate', 'baseline']) {

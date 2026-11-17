@@ -1,34 +1,40 @@
 import test from 'node:test';
+import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { mkdtempSync, readFileSync, writeFileSync, chmodSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { compare, samePage, summarize, targetUrl, validate, saveScreenshot, resourceReport } from './measure.mjs';
-import { selectCache, findChrome } from './setup.mjs';
-
-test('cache selection skips unusable roots and respects an explicit unavailable root', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'perf-cache-selection-'));
-  const blocked = join(dir, 'not-a-directory');
-  writeFileSync(blocked, 'blocked');
-  const writable = join(dir, 'external-cache');
-  const selected = selectCache([blocked, writable]);
-  assert(selected.startsWith(writable));
-  assert.equal(selectCache([blocked, writable]), selected);
-  assert.throws(() => selectCache([blocked]), /No writable measurement cache/);
+import { compare, samePage, summarize, targetUrl, validate, saveScreenshot, resourceReport, loadTools, resolveTool, browserLaunchOptions } from './measure.mjs';
+test('runner requires a browser path and accepts only supported package majors', async () => {
+  await assert.rejects(loadTools({}), /CHROME_PATH/);
+  assert.throws(() => resolveTool('lighthouse', 13, 'relative'), /absolute path/);
+  const dir = mkdtempSync(join(tmpdir(), 'perf-tools-'));
+  writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'lighthouse', version: '13.99.1', exports: './index.js' }));
+  writeFileSync(join(dir, 'index.js'), 'module.exports = {};');
+  assert.equal(resolveTool('lighthouse', 13, dir).version, '13.99.1');
+  assert.throws(() => resolveTool('lighthouse', 14, dir), /Expected lighthouse@14.x/);
 });
 
-test('installed Chromium is discovered without CHROME_PATH and explicit overrides are honored', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'perf-browser-discovery-'));
-  const chromium = join(dir, 'chromium');
-  writeFileSync(chromium, '#!/bin/sh\nexit 0\n');
-  chmodSync(chromium, 0o755);
-  assert.equal(findChrome({ PATH: dir }, []), chromium);
-  assert.equal(findChrome({ CHROME_PATH: chromium, PATH: '' }, []), chromium);
-  assert.throws(() => findChrome({ CHROME_PATH: join(dir, 'absent'), PATH: dir }, []), /not executable/);
-  chmodSync(chromium, 0o644);
-  mkdirSync(join(dir, 'google-chrome'));
-  assert.equal(findChrome({ PATH: dir }, []), undefined);
+test('global NODE_PATH resolution works in a fresh Node process for both packages', () => {
+  const root = mkdtempSync(join(tmpdir(), 'perf-node-path-'));
+  for (const [name, version] of [['lighthouse', '13.99.1'], ['puppeteer-core', '25.99.1']]) {
+    const dir = join(root, name);
+    mkdirSync(dir);
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ name, version, main: './index.js' }));
+    writeFileSync(join(dir, 'index.js'), 'module.exports = {};');
+  }
+  const code = `import { resolveTool } from ${JSON.stringify(new URL('./measure.mjs', import.meta.url).href)};
+    console.log(JSON.stringify([resolveTool('lighthouse', 13), resolveTool('puppeteer-core', 25)]));`;
+  const result = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', code], {
+    encoding: 'utf8', env: { ...process.env, NODE_PATH: root },
+  }));
+  assert.deepEqual(result.map(x => x.version), ['13.99.1', '25.99.1']);
+});
+
+test('Linux launches use the agent VM flags without changing other platforms', () => {
+  assert.deepEqual(browserLaunchOptions('/chrome', 'linux').args, ['--no-sandbox', '--disable-dev-shm-usage']);
+  assert.equal(browserLaunchOptions('/chrome', 'darwin').args, undefined);
 });
 
 test('screenshots retain MIME extension and exact decoded bytes', () => {
