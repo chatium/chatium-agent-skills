@@ -178,7 +178,7 @@ Use recorded ClickHouse data for traffic reports, funnels, ad spend, acquisition
 | Render a video stored in Chatium | [video.md](video.md) |
 | Translate UI strings or edit `*.lang.yml` files | [i18n.md](i18n.md) |
 | Save a customer form and capture its CRM/analytics event | [forms.md](forms.md) |
-| Create payments, receipts or saved-card charges; list/count attempts or payments; handle payment callbacks or import historical payments | [payments.md](payments.md) |
+| Create CRM order checkout; create Pay sandbox in the current account with `ensureSandboxProvider`, test an order with `startDealSandboxPayment`; implement payment integrations, receipts, saved-card charges or payment reports | [payments.md](payments.md) |
 | Accept bonuses, tokens or an internal wallet balance through Pay; implement quote/debit/refund adapters or delegated balance charges | [internal-balance-payments.md](internal-balance-payments.md) |
 | Implement an external Pay provider, register full or partial transfers, or issue provider-side receipts | [payment-providers.md](payment-providers.md) |
 | Refund a payment or handle refund lifecycle hooks | [payment-refunds.md](payment-refunds.md) |

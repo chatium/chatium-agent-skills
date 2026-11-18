@@ -1,10 +1,37 @@
 # Payments
 
-Use the public `@pay/sdk` from server code in an account or plugin. `runAttemptPayment` creates an `Attempt`; a confirmed transfer becomes a `Payment`. The `subject` links the attempt to an order or another Heap record. Provider-side methods are in [payment-providers.md](payment-providers.md).
+For order checkout, use CRM orders (`createDeal` from `@crm/sdk`) and `/app/crm/pay?deal=<id>`; CRM owns the amount, line items, Pay callbacks and payment accounting. Do not create a parallel order table or bypass CRM with a direct Pay attempt. Use the low-level public `@pay/sdk` below when implementing a payment integration itself. `runAttemptPayment` creates an `Attempt`; a confirmed transfer becomes a `Payment`. Provider-side methods are in [payment-providers.md](payment-providers.md).
 
 For bonuses, tokens, or a wallet, use the built-in internal provider and read [internal-balance-payments.md](internal-balance-payments.md). Ordinary checkout keeps the same `runAttemptPayment` contract; it does not require `source/externalId`. The separate `chargeInternalBalancePayment` SDK performs a protected debit for another user and is restricted to account code and Start.
 
-## Create a payment
+## Test payments in the current account
+
+An agent can create or retrieve Pay sandbox at any time, including next to live providers. From server-side `chatium exec --write` (or server code):
+
+```ts
+import { ensureSandboxProvider } from '@pay/sdk'
+const sandbox = await ensureSandboxProvider(ctx)
+// { id, key: 'pay:sandbox', isTest: true, isDefault, visibleInProviderLists, created }
+```
+
+This idempotent call preserves existing provider settings and the live default. The sandbox is initially hidden from customer lists. `findPaymentProviders` may therefore omit it; an empty result does not mean it cannot be created. `getAllPaymentProviders` auto-creates sandbox only when there are no active providers: use `ensureSandboxProvider` for explicit setup in any account. Install Pay through the supported plugin-install SDK if it is absent; do not insert its Heap rows yourself.
+
+Creating sandbox does not select it for CRM checkout. To test one explicitly selected test order alongside live providers, call CRM as an Admin or Developer:
+
+```ts
+import { startDealSandboxPayment } from '@crm/sdk'
+const result = await startDealSandboxPayment(ctx, { dealId: testOrderId })
+if (!result.success) throw new Error(`Sandbox payment: ${result.reason}`)
+// Open result.link while signed in; result.providerId is the selected sandbox.
+```
+
+CRM ensures sandbox itself, charges only the order's current outstanding amount through that provider, and retains its normal payment callbacks and accounting. It creates a new attempt on each call; after an uncertain response inspect attempts by `dealId` before retrying. A failed setup never falls back to a live provider. This server SDK is for test operators; do not expose it through an unprotected public route or add a customer-controlled test flag. It returns a sandbox form link, not a way to alter the ordinary customer payment page. After error/cancel, start the next test attempt through this SDK again; `/app/crm/pay` still uses the ordinary configured methods.
+
+Sandbox simulates success, partial payment, error, cancellation and refund without money transfers or fiscal receipts. Its callbacks, automations, messages and product access are real. Use your designated test orders and contacts; verify side effects before submitting. Re-read CRM `getDeal` after callbacks: expect `paidTest` to change and `paidMoney` to stay unchanged. Fulfillment may accept test payment only for server-selected test orders/recipients; do not globally remove a real-payment guard. Sandbox totals are not revenue.
+
+Do not create another account, copy the funnel, switch the account's default provider, or propose a small real charge just to enable this test. If an SDK export is unavailable, refresh installed typings and verify the installed plugin/version. Report the precise missing method or permission and block that payment step; continue independent checks. A separate test account is an explicit testing choice, not a prerequisite for creating sandbox. A sandbox run is not automatically an isolated process TestContext operation and does not prove the customer-facing choice of payment methods works.
+
+## Create a payment integration
 
 ```ts
 import { runAttemptPayment, validateCaller } from '@pay/sdk'
