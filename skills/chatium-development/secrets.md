@@ -9,8 +9,8 @@ import { deleteSecret, getSecret, secret, secretRef, setSecret } from '@app/secr
 ## Modes and allowed hosts
 
 - `readable` ("Code access" on the Secrets page) — server code reads the value with `getSecret(ctx, name)` (null when it does not exist).
-- `refOnly` ("HTTP requests only") — code never sees the value: `getSecret` throws, the code passes `secretRef(name)` into `@app/request` and the platform substitutes the value right before sending. Use it for private keys and long-lived credentials. Nobody can see its value, and it can't be switched back to `readable`.
-- `allowedHosts` — where a reference may be sent: exact host names (`api.example.com`) or `*.example.com` for subdomains; empty means nowhere. Checked for every reference, a client certificate included, and on every redirect.
+- `refOnly` ("HTTP requests only") — code never sees the value: `getSecret` throws, the code passes `secretRef(name)` into `@app/request` and the platform substitutes the value right before sending. Use it for private keys and long-lived credentials. Its value is never shown again, neither to the code nor on the Secrets page, and it can't be switched back to `readable`. It is still sent to every allowed host, so whoever manages the secrets decides where it goes.
+- `allowedHosts` — where a reference may be sent: exact host names (`api.example.com`) or `*.example.com` for subdomains; empty means nowhere. Checked for every reference, a client certificate included, and on every redirect. A request with references must use `https`, on every redirect too, and can't reach private or loopback addresses.
 - `allowedIn` — places of the request a reference may be used in: `url` (`url`, `searchParams`), `header` (headers, `username`, `password`), `body` (`body`, `json`, `form`), `tls` (`https.certificate`, `https.key`); all of them by default. Narrow it to what the secret is for: `['tls']` for a client key, `['header']` for an API token.
 
 `setSecret(ctx, name, value, { mode, allowedHosts, allowedIn })` creates a secret with these options (defaults: `readable`, no hosts, every place) or, when it exists, replaces only its value — the other options stay as an admin set them. The replaced value is kept: it can be restored on the Secrets page, the code can't read it. The developer panel page `/app/dev/secrets` is where secrets are created and their values, modes and hosts changed; only the account Owner has it by default, others get it when the Owner assigns them the Secrets manager role. Ask the user to put credentials there rather than pasting them into code or chat.
@@ -32,7 +32,9 @@ const response = await request({
 })
 ```
 
-A missing secret, a place outside its `allowedIn` or a host outside its `allowedHosts` fails the request. Values never reach the code: if the server echoes one back, the response URL, headers, body and errors carry `[secret]` instead (a JSON body stays valid JSON). A request with references can't set a response `encoding` other than UTF-8. A secret value can't be empty.
+A missing secret, a place outside its `allowedIn` or a host outside its `allowedHosts` fails the request. Values never reach the code: if the server echoes one back, the response URL, headers, body and errors carry `[secret]` instead (a JSON body stays valid JSON). A request with references can't set a response `encoding` other than UTF-8.
+
+Limits: a name is 1–128 characters of `A-Z a-z 0-9 _ . -`; a value is 1 to 65 536 characters; an app (or the account's own code) holds at most 200 secrets. A `secret` template may contain another `secret` template.
 
 ## Mutual TLS with a PKCS#12 certificate
 
@@ -80,8 +82,9 @@ async function accessToken(ctx: app.Ctx): Promise<string> {
       responseType: 'json',
       resolveBodyOnly: true,
     })
-    await setSecret(ctx, 'example.accessToken', tokens.access_token)
+    // the rotated refresh token first: it is the one that can't be obtained again if a later write fails
     await setSecret(ctx, 'example.refreshToken', tokens.refresh_token)
+    await setSecret(ctx, 'example.accessToken', tokens.access_token)
     await setSecret(ctx, 'example.expiresAt', String(Date.now() + tokens.expires_in * 1000))
     return tokens.access_token
   })
