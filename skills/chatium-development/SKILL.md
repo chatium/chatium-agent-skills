@@ -20,6 +20,17 @@ Use `processes` only for a confirmed change to an existing process or a genuinel
 
 Before working in a workspace or isolated module, read its `.CHATIUM-LLM.md` if present. When changing architecture, key functionality, or substantial project decisions, create or update that file, integrating information into its existing sections. Do not create a document per component or require documentation changes for a question-only response.
 
+## Publishing reusable solutions in the catalog
+
+When the user wants to publish/share a plugin, ZIP template or skill package for other
+Chatium accounts, use [chatium-creators](../chatium-creators/SKILL.md). This includes
+ambiguous wording such as «выложить в стор/магазин», «разместить в каталоге»,
+«тиражировать решение», «опубликовать скилл» and updates to a creator profile/card.
+Distinguish catalog distribution from launching the account's own website when intent
+is unclear. The creator skill covers registration, explicit account/user binding,
+packaging, account-only SDK operations and publication requests. Ordinary development
+continues here; installing someone else's plugin uses the installation reference below.
+
 ## Notifications for staff and administrators
 
 For **receiving staff notifications in code**, read [Notification handlers](notification-handlers.md): typed static manifests declare app.function destinations; the current staff user explicitly selects them via UI/SDK. It is not a separate producer API or a replacement for `sendNotification`.
@@ -124,8 +135,6 @@ Sender manages customer communications over connected Telegram/VK/email/SMS and 
 
 ### Mailings
 
-Use [chatium-mailings-launch](../chatium-mailings-launch/SKILL.md) to prepare, test, launch, stop or report on a campaign through `@mailings/sdk`, including CRM audiences, messenger content, HTML email and transport groups.
-
 Read [Mailings](mailings.md) when creating or changing letters. It distinguishes new letters in Mailings storage from existing legacy YAML letters inside a `type: emails` process workspace; preserve the latter when extending that workspace. For stored letters, use the Mailings SDK to read a letter by path or send it from a template.
 
 ### Google
@@ -169,7 +178,7 @@ Use recorded ClickHouse data for traffic reports, funnels, ad spend, acquisition
 | Render a video stored in Chatium | [video.md](video.md) |
 | Translate UI strings or edit `*.lang.yml` files | [i18n.md](i18n.md) |
 | Save a customer form and capture its CRM/analytics event | [forms.md](forms.md) |
-| Create payments, receipts or saved-card charges; list/count attempts or payments; handle payment callbacks or import historical payments | [payments.md](payments.md) |
+| Create CRM order checkout; create Pay sandbox in the current account with `ensureSandboxProvider`, test an order with `startDealSandboxPayment`; implement payment integrations, receipts, saved-card charges or payment reports | [payments.md](payments.md) |
 | Accept bonuses, tokens or an internal wallet balance through Pay; implement quote/debit/refund adapters or delegated balance charges | [internal-balance-payments.md](internal-balance-payments.md) |
 | Implement an external Pay provider, register full or partial transfers, or issue provider-side receipts | [payment-providers.md](payment-providers.md) |
 | Refund a payment or handle refund lifecycle hooks | [payment-refunds.md](payment-refunds.md) |
