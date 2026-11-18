@@ -8,8 +8,8 @@ import { deleteSecret, getSecret, secret, secretRef, setSecret } from '@app/secr
 
 ## Modes and allowed hosts
 
-- `readable` ("Code access" on the Secrets page) — server code reads the value with `getSecret(ctx, name)` (null when it does not exist). It takes no `allowedHosts` and no narrowed `allowedIn` (`setSecret` throws), and `secretRef` of it is refused: read it and pass the value.
-- `refOnly` ("HTTP requests only") — code never sees the value: `getSecret` throws, the code passes `secretRef(name)` into `@app/request` and the platform substitutes the value right before sending. Use it for private keys and long-lived credentials. Its value is never shown again, neither to the code nor on the Secrets page, and it can't be switched back to `readable`. It is still sent to every allowed host, so whoever manages the secrets decides where it goes.
+- `readable` ("Code access" on the Secrets page) — server code reads the value with `getSecret(ctx, name)` (null when it does not exist). It takes no `allowedHosts` and no narrowed `allowedIn` (`setSecret` throws). Use it only for a value the code needs as a string: a signing key for an HMAC, a value put into a computed signature. A `secretRef` to it also works, for any host and any place of a request — nothing restricts where it goes.
+- `refOnly` ("HTTP requests only") — code never sees the value: `getSecret` throws, the code passes `secretRef(name)` into `@app/request` and the platform substitutes the value right before sending. The default choice for everything that is only sent to an API: private keys, API keys, client secrets, and OAuth tokens too — the code can still replace a token with `setSecret` without being able to read it. Its value is never shown again, neither to the code nor on the Secrets page, and it can't be switched back to `readable`. It is still sent to every allowed host, so whoever manages the secrets decides where it goes.
 - `allowedHosts` — where a reference may be sent: exact host names (`api.example.com`) or `*.example.com` for subdomains; empty means nowhere. Checked for every reference, a client certificate included, and on every redirect. A request with references must use `https`, on every redirect too, and can't reach private or loopback addresses.
 - `allowedIn` — places of the request a reference may be used in: `url` (`url`, `searchParams`), `header` (headers, `username`, `password`), `body` (`body`, `json`, `form`), `tls` (`https.certificate`, `https.key`); all of them by default. Narrow it to what the secret is for: `['tls']` for a client key, `['header']` for an API token.
 
@@ -63,43 +63,62 @@ await request({ url: 'https://api.example.com/statement', https: tls, responseTy
 
 ## Refreshing OAuth tokens
 
-Refresh lazily under a lock and store the new pair with `setSecret`; a refresh token that rotates must never be used by two refreshes at once.
+Keep the tokens as `refOnly` secrets bound to the API host: the code replaces them with `setSecret` and passes them by reference, and never reads them back. Refresh lazily under a lock; a refresh token that rotates must never be used by two refreshes at once.
 
 ```ts
 import { request } from '@app/request'
-import { getSecret, secretRef, setSecret } from '@app/secrets'
+import { getSecret, secret, secretRef, setSecret, type SetSecretOptions } from '@app/secrets'
 import { runWithExclusiveLock } from '@app/sync'
 
+const host = 'api.example.com'
 const tls = { certificate: secretRef('example.crt'), key: secretRef('example.key') }
+// applied when the code creates the secret; an existing one keeps what an admin set
+const accessTokenOptions: SetSecretOptions = { mode: 'refOnly', allowedHosts: [host], allowedIn: ['header'] }
+const refreshTokenOptions: SetSecretOptions = { mode: 'refOnly', allowedHosts: [host], allowedIn: ['body'] }
 
-async function accessToken(ctx: app.Ctx): Promise<string> {
+/** Makes `secretRef('example.accessToken')` valid for the next minutes */
+async function ensureAccessToken(ctx: app.Ctx, force = false): Promise<void> {
   // the lock outlives a slow token call (default maxDurationMs is 30 s)
-  return runWithExclusiveLock(ctx, 'example.oauth', { timeoutMs: 30_000, maxDurationMs: 70_000 }, async ctx => {
+  await runWithExclusiveLock(ctx, 'example.oauth', { timeoutMs: 30_000, maxDurationMs: 70_000 }, async ctx => {
+    // not a secret: a time the code compares, kept next to the tokens
     const expiresAt = Number((await getSecret(ctx, 'example.expiresAt')) ?? 0)
-    if (Date.now() < expiresAt - 5 * 60_000) return (await getSecret(ctx, 'example.accessToken'))!
+    if (!force && Date.now() < expiresAt - 5 * 60_000) return
 
-    const tokens = await request<{ access_token: string; refresh_token: string; expires_in: number }>({
-      url: 'https://api.example.com/oauth/token',
+    const { body: tokens } = await request<{ access_token: string; refresh_token?: string; expires_in: number }>({
+      url: `https://${host}/oauth/token`,
       method: 'post',
       https: tls,
       form: {
         grant_type: 'refresh_token',
-        refresh_token: (await getSecret(ctx, 'example.refreshToken'))!,
+        refresh_token: secretRef('example.refreshToken'),
         client_id: (await getSecret(ctx, 'example.clientId'))!,
         client_secret: secretRef('example.clientSecret'),
       },
       responseType: 'json',
-      resolveBodyOnly: true,
     })
-    // the rotated refresh token first: it is the one that can't be obtained again if a later write fails
-    await setSecret(ctx, 'example.refreshToken', tokens.refresh_token)
-    await setSecret(ctx, 'example.accessToken', tokens.access_token)
+    // The rotated refresh token first: it can't be obtained again if a later write fails. A provider that does not
+    // rotate echoes the old one, which the platform hides as `[secret]`: keep the stored one then.
+    if (tokens.refresh_token && tokens.refresh_token !== '[secret]') {
+      await setSecret(ctx, 'example.refreshToken', tokens.refresh_token, refreshTokenOptions)
+    }
+    await setSecret(ctx, 'example.accessToken', tokens.access_token, accessTokenOptions)
     await setSecret(ctx, 'example.expiresAt', String(Date.now() + tokens.expires_in * 1000))
-    return tokens.access_token
+  })
+}
+
+async function listItems(ctx: app.Ctx) {
+  await ensureAccessToken(ctx)
+  return request({
+    url: `https://${host}/v1/items`,
+    https: tls,
+    headers: { Authorization: secret`Bearer ${secretRef('example.accessToken')}` },
+    responseType: 'json',
   })
 }
 ```
 
-- Tokens returned by a response are visible to the code anyway, so they are `readable` secrets.
-- Retry a `401` once after a forced refresh. If the refresh token can expire from disuse, keep it alive with a self-rescheduling [job](jobs.md) that calls `accessToken`.
-- The initial token pair comes from the provider's authorization flow or its admin console; store it through the admin page (untick "Only admin changes" for the tokens) or a one-off authorized route, never in source. Client keys and secrets the code never rewrites stay admin-only.
+- The new tokens come in a response, so the code sees each of them once, before it stores them. After that nothing reads them: not the code of a later request, not the Secrets page.
+- A response that echoes a referenced secret carries `[secret]` in its place. Never store a value equal to `[secret]`.
+- Use `readable` only where the code computes with the value (an HMAC signing key). `example.clientId` and `example.expiresAt` above are readable because they are not secret.
+- Retry a `401` once after `ensureAccessToken(ctx, true)`. If the refresh token can expire from disuse, keep it alive with a self-rescheduling [job](jobs.md) that calls `ensureAccessToken`.
+- The initial token pair comes from the provider's authorization flow or its admin console. Store it with a one-off authorized route that calls `setSecret` with the options above, or with `chatium secrets create example.refreshToken --ref-only --host api.example.com --allow-in body --code-managed`; never in source. A secret created on the Secrets page or by the CLI is admin-only unless made code-managed, and then `setSecret` throws. Client keys and secrets the code never rewrites stay admin-only.
