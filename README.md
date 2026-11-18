@@ -20,11 +20,6 @@ with preview checks and before/after rendering measurements.
 and Chatium Email through the public SDKs, preserves existing DNS/mail services,
 and verifies HTTPS, DNS, transport and mailbox readiness separately from test-message delivery.
 
-[chatium-mailings-launch](skills/chatium-mailings-launch/SKILL.md) prepares, tests,
-launches, stops and reports on campaigns through `@mailings/sdk`: HTML email and
-editable blocks, messengers, CRM audiences, Vault attachments and transport groups.
-It includes the complete workflow, SDK references and an HTML email shell.
-
 [chatium-creators](skills/chatium-creators/SKILL.md) guides creator onboarding,
 secure account connections, plugin registration, ZIP templates, skill descriptions
 and catalog publication requests, with manual pricing and payout guidance.
