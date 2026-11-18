@@ -8,12 +8,21 @@ import { deleteSecret, getSecret, secret, secretRef, setSecret } from '@app/secr
 
 ## Modes and allowed hosts
 
-- `readable` ("Code access" on the Secrets page) — server code reads the value with `getSecret(ctx, name)` (null when it does not exist).
+- `readable` ("Code access" on the Secrets page) — server code reads the value with `getSecret(ctx, name)` (null when it does not exist). It takes no `allowedHosts` and no narrowed `allowedIn` (`setSecret` throws), and `secretRef` of it is refused: read it and pass the value.
 - `refOnly` ("HTTP requests only") — code never sees the value: `getSecret` throws, the code passes `secretRef(name)` into `@app/request` and the platform substitutes the value right before sending. Use it for private keys and long-lived credentials. Its value is never shown again, neither to the code nor on the Secrets page, and it can't be switched back to `readable`. It is still sent to every allowed host, so whoever manages the secrets decides where it goes.
 - `allowedHosts` — where a reference may be sent: exact host names (`api.example.com`) or `*.example.com` for subdomains; empty means nowhere. Checked for every reference, a client certificate included, and on every redirect. A request with references must use `https`, on every redirect too, and can't reach private or loopback addresses.
 - `allowedIn` — places of the request a reference may be used in: `url` (`url`, `searchParams`), `header` (headers, `username`, `password`), `body` (`body`, `json`, `form`), `tls` (`https.certificate`, `https.key`); all of them by default. Narrow it to what the secret is for: `['tls']` for a client key, `['header']` for an API token.
 
-`setSecret(ctx, name, value, { mode, allowedHosts, allowedIn })` creates a secret with these options (defaults: `readable`, no hosts, every place) or, when it exists, replaces only its value — the other options stay as an admin set them. The replaced value is kept: it can be restored on the Secrets page, the code can't read it. The developer panel page `/app/dev/secrets` is where secrets are created and their values, modes and hosts changed; only the account Owner has it by default, others get it when the Owner assigns them the Secrets manager role. Ask the user to put credentials there rather than pasting them into code or chat.
+`setSecret(ctx, name, value, { mode, allowedHosts, allowedIn })` creates a secret with these options (defaults: `readable`, no hosts, every place; hosts and places only with `mode: 'refOnly'`) or, when it exists, replaces only its value — the other options stay as an admin set them. The replaced value is kept: it can be restored on the Secrets page, the code can't read it. The developer panel page `/app/dev/secrets` is where secrets are created and their values, modes and hosts changed; only the account Owner has it by default, others get it when the Owner assigns them the Secrets manager role. Ask the user to put credentials there rather than pasting them into code or chat.
+
+Whoever may manage secrets and commit code (`system:code:commit`, required by every CLI command) also manages them from the terminal with `chatium secrets` (CLI 3.26.0 or newer): `list`, `log <name>`, `create <name>`, `set <name>`, `settings <name>`, `restore-previous <name>`, `delete <name>`. The CLI never shows a value. `create` and `set` take the value from a hidden prompt, or from a file or stdin with `--value-file <path|->` — never from a command argument. The prompt takes one line, so a certificate or a key goes through `--value-file`:
+
+```sh
+chatium secrets create BANK_TOKEN                      # the user types the value, nothing is echoed
+chatium secrets create client.key --value-file ./client.key --ref-only --host api.bank.example --allow-in tls
+```
+
+Do not ask the user for a secret value in chat and do not write it into a file yourself. Either the user runs `chatium secrets create <name>` in their own terminal, or you run it with `--value-file` on a file the user already has (a downloaded certificate or key). Without a terminal the hidden prompt is unavailable, and `delete`, `restore-previous` and `settings --code-managed` need `--yes`: pass it only when the user asked for that change.
 
 A secret an admin marks "Only admin changes" (on by default for secrets created on that page) can still be read or referenced per its mode, but `setSecret` and `deleteSecret` throw. A token the code refreshes must be a secret the code may change: either the code creates it, or the admin unticks that box.
 
