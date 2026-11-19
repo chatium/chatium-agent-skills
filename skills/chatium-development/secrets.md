@@ -18,7 +18,7 @@ import { deleteSecret, getSecret, secret, secretRef, setSecret } from '@app/secr
 Whoever may manage secrets and commit code (`system:code:commit`, required by every CLI command) also manages them from the terminal with `chatium secrets` (CLI 3.27.0 or newer): `list`, `log <name>`, `create <name>`, `set <name>`, `settings <name>`, `restore-previous <name>`, `delete <name>`. The CLI never shows a value. `create` and `set` take the value from a hidden prompt, or from a file or stdin with `--value-file <path|->` — never from a command argument. The prompt takes one line, so a certificate or a key goes through `--value-file`:
 
 ```sh
-chatium secrets create BANK_TOKEN                      # the user types the value, nothing is echoed
+chatium secrets create BANK_TOKEN --ref-only --host api.bank.example --allow-in header
 chatium secrets create client.key --value-file ./client.key --ref-only --host api.bank.example --allow-in tls
 ```
 
@@ -63,18 +63,18 @@ await request({ url: 'https://api.example.com/statement', https: tls, responseTy
 
 ## Refreshing OAuth tokens
 
-Keep the tokens as `refOnly` secrets bound to the API host: the code replaces them with `setSecret` and passes them by reference, and never reads them back. Refresh lazily under a lock; a refresh token that rotates must never be used by two refreshes at once.
+In this example, bind the refresh token and client secret to the token endpoint host (`body`), and the access token to the resource API host (`header`). Keep the tokens as `refOnly` secrets: the code replaces them with `setSecret` and passes them by reference, and never reads them back. Refresh lazily under a lock; a refresh token that rotates must never be used by two refreshes at once.
 
 ```ts
 import { request } from '@app/request'
 import { getSecret, secret, secretRef, setSecret, type SetSecretOptions } from '@app/secrets'
 import { runWithExclusiveLock } from '@app/sync'
 
-const host = 'api.example.com'
-const tls = { certificate: secretRef('example.crt'), key: secretRef('example.key') }
+const tokenHost = 'auth.example.com'
+const apiHost = 'api.example.com'
 // applied when the code creates the secret; an existing one keeps what an admin set
-const accessTokenOptions: SetSecretOptions = { mode: 'refOnly', allowedHosts: [host], allowedIn: ['header'] }
-const refreshTokenOptions: SetSecretOptions = { mode: 'refOnly', allowedHosts: [host], allowedIn: ['body'] }
+const accessTokenOptions: SetSecretOptions = { mode: 'refOnly', allowedHosts: [apiHost], allowedIn: ['header'] }
+const refreshTokenOptions: SetSecretOptions = { mode: 'refOnly', allowedHosts: [tokenHost], allowedIn: ['body'] }
 
 /** Makes `secretRef('example.accessToken')` valid for the next minutes */
 async function ensureAccessToken(ctx: app.Ctx, force = false): Promise<void> {
@@ -85,9 +85,8 @@ async function ensureAccessToken(ctx: app.Ctx, force = false): Promise<void> {
     if (!force && Date.now() < expiresAt - 5 * 60_000) return
 
     const { body: tokens } = await request<{ access_token: string; refresh_token?: string; expires_in: number }>({
-      url: `https://${host}/oauth/token`,
+      url: `https://${tokenHost}/oauth/token`,
       method: 'post',
-      https: tls,
       form: {
         grant_type: 'refresh_token',
         refresh_token: secretRef('example.refreshToken'),
@@ -109,8 +108,7 @@ async function ensureAccessToken(ctx: app.Ctx, force = false): Promise<void> {
 async function listItems(ctx: app.Ctx) {
   await ensureAccessToken(ctx)
   return request({
-    url: `https://${host}/v1/items`,
-    https: tls,
+    url: `https://${apiHost}/v1/items`,
     headers: { Authorization: secret`Bearer ${secretRef('example.accessToken')}` },
     responseType: 'json',
   })
@@ -121,4 +119,6 @@ async function listItems(ctx: app.Ctx) {
 - A response that echoes a referenced secret carries `[secret]` in its place. Never store a value equal to `[secret]`.
 - Use `readable` only where the code computes with the value (an HMAC signing key). `example.clientId` and `example.expiresAt` above are readable because they are not secret.
 - Retry a `401` once after `ensureAccessToken(ctx, true)`. If the refresh token can expire from disuse, keep it alive with a self-rescheduling [job](jobs.md) that calls `ensureAccessToken`.
-- The initial token pair comes from the provider's authorization flow or its admin console. Store it with a one-off authorized route that calls `setSecret` with the options above, or with `chatium secrets create example.refreshToken --ref-only --host api.example.com --allow-in body --code-managed`; never in source. A secret created on the Secrets page or by the CLI is admin-only unless made code-managed, and then `setSecret` throws. Client keys and secrets the code never rewrites stay admin-only.
+- For the account’s own code, seed the initial refresh token from the provider using `chatium secrets create example.refreshToken --ref-only --host auth.example.com --allow-in body --code-managed`. For an installed app, create it from the app’s own authorized setup flow with `setSecret(ctx, 'example.refreshToken', value, refreshTokenOptions)`. CLI `create` targets the account’s own code. Keep credentials that the code never rewrites admin-managed.
+
+If the provider requires mTLS, add the [client certificate and key](#mutual-tls-with-a-pkcs12-certificate) to the `https` options of each request that requires them. Give both secrets the `tls` placement and allow the host of each endpoint that receives that certificate.
