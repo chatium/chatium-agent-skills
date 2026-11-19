@@ -43,7 +43,7 @@ const response = await request({
 
 A missing secret, a place outside its `allowedIn` or a host outside its `allowedHosts` fails the request. Values never reach the code: if the server echoes one back, the response URL, headers, body and errors carry `[secret]` instead (a JSON body stays valid JSON). A request with references can't set a response `encoding` other than UTF-8.
 
-Limits: a name is 1–128 characters of `A-Z a-z 0-9 _ . -`; a value is 4 to 65 536 characters (a shorter one would not be hidden in a response that echoes it); an app (or the account's own code) holds at most 200 secrets. A `secret` template may contain another `secret` template.
+Limits: a name is 1–128 characters of `A-Z a-z 0-9 _ . -`; a value is 4 to 65 536 characters (a shorter one would not be hidden in a response that echoes it). A `secret` template may contain another `secret` template.
 
 ## Mutual TLS with a PKCS#12 certificate
 
