@@ -189,6 +189,7 @@ Use recorded ClickHouse data for traffic reports, funnels, ad spend, acquisition
 | Refund a payment or handle refund lifecycle hooks | [payment-refunds.md](payment-refunds.md) |
 | Create a PDF asynchronously from HTML or a URL | [pdf.md](pdf.md) |
 | Hash, sign, encrypt, or perform other cryptographic work | [crypto.md](crypto.md) |
+| Store API keys, client secrets, OAuth tokens or TLS client keys; call an API with mutual TLS; refresh OAuth tokens | [secrets.md](secrets.md) |
 | Serve `robots.txt` or `sitemap.xml` | [seo.md](seo.md) |
 | Integrate Bitrix24 | [bitrix24.md](bitrix24.md) |
 | Integrate AmoCRM | [amocrm.md](amocrm.md) |
