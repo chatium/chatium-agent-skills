@@ -15,7 +15,7 @@ import { deleteSecret, getSecret, secret, secretRef, setSecret } from '@app/secr
 
 `setSecret(ctx, name, value, { mode, allowedHosts, allowedIn })` creates a secret with these options (defaults: `readable`, no hosts, every place; hosts and places only with `mode: 'refOnly'`) or, when it exists, replaces only its value — the other options stay as an admin set them. The replaced value is kept: it can be restored on the Secrets page, the code can't read it. The developer panel page `/app/dev/secrets` is where secrets are created and their values, modes and hosts changed; only the account Owner has it by default, others get it when the Owner assigns them the Secrets manager role. Ask the user to put credentials there rather than pasting them into code or chat.
 
-Whoever may manage secrets and commit code (`system:code:commit`, required by every CLI command) also manages them from the terminal with `chatium secrets` (CLI 3.26.0 or newer): `list`, `log <name>`, `create <name>`, `set <name>`, `settings <name>`, `restore-previous <name>`, `delete <name>`. The CLI never shows a value. `create` and `set` take the value from a hidden prompt, or from a file or stdin with `--value-file <path|->` — never from a command argument. The prompt takes one line, so a certificate or a key goes through `--value-file`:
+Whoever may manage secrets and commit code (`system:code:commit`, required by every CLI command) also manages them from the terminal with `chatium secrets` (CLI 3.27.0 or newer): `list`, `log <name>`, `create <name>`, `set <name>`, `settings <name>`, `restore-previous <name>`, `delete <name>`. The CLI never shows a value. `create` and `set` take the value from a hidden prompt, or from a file or stdin with `--value-file <path|->` — never from a command argument. The prompt takes one line, so a certificate or a key goes through `--value-file`:
 
 ```sh
 chatium secrets create BANK_TOKEN                      # the user types the value, nothing is echoed
@@ -43,7 +43,7 @@ const response = await request({
 
 A missing secret, a place outside its `allowedIn` or a host outside its `allowedHosts` fails the request. Values never reach the code: if the server echoes one back, the response URL, headers, body and errors carry `[secret]` instead (a JSON body stays valid JSON). A request with references can't set a response `encoding` other than UTF-8.
 
-Limits: a name is 1–128 characters of `A-Z a-z 0-9 _ . -`; a value is 1 to 65 536 characters; an app (or the account's own code) holds at most 200 secrets. A `secret` template may contain another `secret` template.
+Limits: a name is 1–128 characters of `A-Z a-z 0-9 _ . -`; a value is 4 to 65 536 characters (a shorter one would not be hidden in a response that echoes it); an app (or the account's own code) holds at most 200 secrets. A `secret` template may contain another `secret` template.
 
 ## Mutual TLS with a PKCS#12 certificate
 
