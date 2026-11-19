@@ -31,6 +31,11 @@ is unclear. The creator skill covers registration, explicit account/user binding
 packaging, account-only SDK operations and publication requests. Ordinary development
 continues here; installing someone else's plugin uses the installation reference below.
 
+When adding agent skills to a plugin or diagnosing why an installed plugin's skill
+is missing, use the [plugin skill contract](../chatium-creators/references/skills.md#скиллы-внутри-плагина).
+It covers `.skills`, names shared across plugins and account verification independently
+of creator cabinet setup.
+
 ## Notifications for staff and administrators
 
 For **receiving staff notifications in code**, read [Notification handlers](notification-handlers.md): typed static manifests declare app.function destinations; the current staff user explicitly selects them via UI/SDK. It is not a separate producer API or a replacement for `sendNotification`.
