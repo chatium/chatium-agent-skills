@@ -1,0 +1,71 @@
+// Owner-facing progress describes work on the process, not stages inside the funnel.
+const steps = [
+  ['Вводные о бизнесе', 'Уточняй и сверяй факты с владельцем. Исходники блоков оставь пустыми до согласования структуры.', 'Подтверждённые вводные и открытые вопросы.', 'method/interview.md', 'method/README.md'],
+  ['План и первая карта', 'Веди архитектурный план штатным инструментом сессии, если он доступен. Сверяй пункты с PLAN.md. Опиши путь клиента, назначение блоков, переходы, критерии и будущие пути файлов. До «Строим так?» готовь только структуру.', 'План и первая карта, на которой можно проследить путь клиента.', 'formats/plan-md.md', 'formats/process-yaml.md', 'build/procedure.md'],
+  ['Ревью плана и «Строим так?»', 'Получи заключения методолога и архитектора на одной версии. Исправь замечания, проверь актуальную карту и покажи её владельцу. Дождись решения. Постоянную цель сборки поставь при переходе к шагу 4. Тексты, код и прогон — после согласования.', 'Проверенный план и карта для решения «Строим так?».', 'build/commission.md', 'build/procedure.md'],
+  ['Сборка', 'Перед первой карточкой установи постоянную цель приёмки, если инструмент доступен. При продолжении сверь уже поставленную цель и план. Возьми карточку согласованного блока. Для клиентской страницы или серии нужны предложения профильных субагентов, конфигуратор и независимое ревью задания. Затем выполняй реализацию по build.md.', 'Собранные части и результаты их локальных проверок.', 'build/tasks-and-creative.md', 'specialists/guide.md', 'formats/creative-spec.md'],
+  ['Приёмка', 'При возобновлении приёмки восстанови штатный план и цель по WORKFLOW.md. Сверь критерии карточек с результатами, получи независимое ревью и отметь принятую работу на доске. При замечаниях продолжай исправления и повторяй затронутое ревью. Прерванное ревью возобнови. Публикуй приёмку каждого готового блока сразу. Для сдачи нужны все блоки и общее ревью процесса.', 'Сколько частей принято, что осталось исправить.', 'build/review.md', 'build/construction-statuses.md'],
+  ['Тестирование', 'Сверь штатный план и цель. После приёмки пройди согласованные сценарии с тестовыми данными и сохрани результаты на доске. Заверши цель после успешного check этапа test и сверки доски.', 'Результаты проверки пути клиента и выявленные ограничения.', 'formats/test-records.md', 'build/procedure.md'],
+  ['Согласование и запуск', 'Покажи результаты и точный объём включения. Дождись решения владельца «Запускаем?». После согласия включи разрешённое, проверь доступ клиентам, наблюдение и способ остановки.', 'До решения — что предлагается включить. После запуска — что действительно включено и проверено.', 'build/commission.md', 'build/preview.md', 'build/procedure.md', 'build/operations.md'],
+]
+
+function step(number, next) {
+  const [title, instruction, deliverable, ...references] = steps[number - 1]
+  return { number, label: `${number} из ${steps.length} — ${title}`, next, instruction, deliverable, references }
+}
+
+export function stepGuidance(progress) {
+  return `Правило шага ${progress.number}: ${progress.instruction}\nЧитать сейчас: ${progress.references.join(', ')}`
+}
+
+// A plan item with both build and test criteria stays unchecked until the test passes.
+export function hasOpenBuildWork(planTasks, cards) {
+  return planTasks.some(task => {
+    if (task.done) return false
+    if (!task.criteria?.length) return true
+    return task.criteria.filter(item => item.stage === 'build' || item.stage === 'design').some(item => {
+      const assigned = cards.filter(card => card.planTask === task.id && card.status !== 'cancelled' &&
+        card.acceptanceCriteria?.some(criterion => criterion.planCriteria?.includes(item.id)))
+      return !assigned.length || assigned.some(card => card.status !== 'done')
+    })
+  })
+}
+
+export function implementationStep({ hasKnowledge, hasPlan, prematureContent, designReady, planDecision,
+  openTasks, buildReady, processAcceptance, currentNodes, constructionStatus, testingStatus, checkPassed,
+  taskStage, launchDecision }) {
+  if (!hasKnowledge) return step(1, 'Я уточню вводные о бизнесе и запишу их в план работы.')
+  if (!hasPlan) return step(2, 'Я опишу путь клиента и покажу его на доске.')
+  if (prematureContent) return step(3, 'Я отделю преждевременные черновики и проверю структуру плана.')
+  if (!designReady) return step(3, 'Я передам план методологу и архитектору и отработаю их замечания.')
+  if (planDecision.status === 'declined') return step(3, 'Я учту ваши замечания к предложенному плану.')
+  if (planDecision.status !== 'ready') {
+    if (!checkPassed || !currentNodes?.length) return step(3, 'Я сверю проверки проекта и актуальную карту перед согласованием.')
+    return step(3, 'От вас нужно решение по плану, чтобы я мог начать сборку.')
+  }
+  if (openTasks) return step(4, 'Я соберу и проверю оставшиеся части процесса.')
+  if (!buildReady) return step(5, 'Я доведу независимую проверку до результата и исправлю замечания.')
+  if (!currentNodes?.length) return step(5, 'Я сверю доску и уточню, какие части уже прошли приёмку.')
+  if (constructionStatus !== 'current' || currentNodes.some(node => node.status !== 'built'))
+    return step(5, 'Я проверю результаты сборки и отмечу на доске, какие части прошли приёмку.')
+  if (processAcceptance !== 'passed') return step(5, 'Я завершу общую проверку процесса и подтвержу её на доске.')
+  if (testingStatus !== 'passed') return step(6, 'Я проверю оставшиеся сценарии пути клиента и запишу результаты.')
+  if (launchDecision.status === 'ready' && launchDecision.authority === 'owner')
+    return step(7, checkPassed && taskStage === 'launch'
+      ? 'Я проверю, какие части процесса действительно включены для клиентов.'
+      : 'Я проверю условия согласованного запуска и устраню то, что мешает включению.')
+  if (launchDecision.status === 'rehearsal')
+    return step(7, 'Разрешён только учебный запуск. Я сверю, что ещё нужно для запуска с клиентами.')
+  if (!checkPassed || taskStage !== 'test') return step(6, 'Я сверю итог проверки и устраню оставшиеся замечания.')
+  if (launchDecision.status === 'declined') return step(7, 'Запуск отложен по вашему решению.')
+  return step(7, 'Я покажу результаты проверки. От вас нужно решение, открывать ли процесс клиентам.')
+}
+
+// Copy only the public origin of a Source Git checkout into a client message.
+export function messageFooter(progress, accountRemote, boardPath) {
+  const remote = URL.canParse(accountRemote) ? new URL(accountRemote) : null
+  const lines = [`Текущий шаг: ${progress.label}`, `Следующий шаг: ${progress.next}`]
+  if (remote?.protocol !== 'https:' || !/^\/s\/(?:git|source-git)\//.test(remote.pathname))
+    return lines.join('\n')
+  return ['---', `[Доска процесса](${remote.origin}${boardPath})`, ...lines].join('\n\n')
+}

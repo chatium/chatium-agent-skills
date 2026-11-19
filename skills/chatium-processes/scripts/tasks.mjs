@@ -6,7 +6,9 @@ import { tmpdir } from 'node:os'
 import { isAbsolute, join, resolve, sep } from 'node:path'
 import { findRoot, parseArgs } from './lib/project.mjs'
 import { canonicalTarget } from './lib/knowledge-review.mjs'
+import { adoptBuiltPlan } from './lib/adopt-built-plan.mjs'
 import { ownerDecisionForCurrentBoard } from './lib/owner-decisions.mjs'
+import { isImplementationOutput } from './lib/design-content.mjs'
 import { commissionStatus } from './lib/commission.mjs'
 import { assertSkillProcess } from './lib/process-format.mjs'
 import { inputBlockers } from './lib/input-blockers.mjs'
@@ -191,6 +193,8 @@ try {
   if (command === 'start') {
     if (!['queued', 'ready-to-resume', 'failed'].includes(task.status)) throw Error('Начать можно только ожидающую задачу.')
     const markedProcess = existsSync(join(root, slug, '.workspace.json'))
+    if (markedProcess && task.stage === 'design' && task.expectedOutputs.some(output => isImplementationOutput(slug, output.path)))
+      throw Error('Задача создаёт материалы блока. Запланируйте её на этапе build после согласования структуры.')
     if (task.mode === 'implement' || (markedProcess && task.stage !== 'design')) {
       const mapPath = join(root, slug, 'process.yaml')
       if (existsSync(mapPath)) {
@@ -199,7 +203,8 @@ try {
           throw Error(`Начать задачу ${task.stage} нельзя: ${[...pending.errors,
             ...pending.pending.map(item => `${item.kind === 'question' ? 'нужно решение владельца' : 'не закрыта зависимость'}: ${item.title}`)].join('; ')}`)
       }
-      const decision = await ownerDecisionForCurrentBoard({ root, slug, kind: 'plan' })
+      let decision = await ownerDecisionForCurrentBoard({ root, slug, kind: 'plan' })
+      if (markedProcess && decision.status === 'missing') decision = await adoptBuiltPlan({ root, slug })
       if (decision.status !== 'ready') throw Error(`Начать задачу ${task.stage} нельзя: ${decision.error || decision.status}`)
       // All build-stage work must start from the accepted design, including proposals.
       if (markedProcess) {

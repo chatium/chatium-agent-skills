@@ -7,7 +7,7 @@ import { readTestPlan, testStatus } from './lib/process-testing.mjs'
 //
 // Коды выхода: 0 — всё зелёное, 1 — есть провалы, 2 — не удалось запустить.
 import { prepareSnapshot, publishSnapshot } from './lib/snapshot.mjs'
-import { verifySnapshot, readBoard, inheritedTypecheck } from './lib/freshness.mjs'
+import { verifySnapshot, readBoard, inheritedTypecheck, outstandingBoardAcceptance } from './lib/freshness.mjs'
 import { codeReviewStatus } from './lib/code-review.mjs'
 import { commissionStatus } from './lib/commission.mjs'
 import { ownerDecisionStatus } from './lib/owner-decisions.mjs'
@@ -37,6 +37,7 @@ import { validateMessageMedia } from './lib/message-media.mjs'
 import { validateChannelPlan, validateMessageDelivery } from './lib/message-delivery.mjs'
 import { scanJsSource, balancedObjectEnd, hasExportedGetRoute, routeDefinitionCount } from './lib/source-lex.mjs'
 import { crmUsageChecks, crmAnalyticsEvent, CRM_DEAL_EVENTS, isModuleEventUrl } from './lib/crm-contract.mjs'
+import { designContentIssue, emptyDesignSource } from './lib/design-content.mjs'
 import { validateClientModules } from './lib/client-modules.mjs'
 import { internalPageErrors, needsCreativeReview } from './lib/page-mode.mjs'
 import { externalUrlForNode } from './lib/external-url.mjs'
@@ -114,6 +115,7 @@ if (options['task-stage'] && !TASK_STAGES.includes(options['task-stage'])) {
   process.exit(2)
 }
 const root = findRoot(options.root)
+const design = options['task-stage'] === 'design'
 // Stop before Git/network checks and snapshot writes for an old or ambiguous process.
 try { assertSkillProcess(root, slug) }
 catch (error) {
@@ -221,7 +223,7 @@ function eventWrites() {
   return out
 }
 
-const automationFiles = walk(dir).filter(f => f.endsWith('.automationConfig.json'))
+const automationFiles = walk(dir).filter(f => f.endsWith('.automationConfig.json') && (!design || !emptyDesignSource(f)))
 const automations = automationFiles.map(f => {
   try {
     return { file: f, config: JSON.parse(readFileSync(f, 'utf8')) }
@@ -303,13 +305,13 @@ check('workspace', 'Воркспейс процесса', ({ error, warn }) => {
   if (!Array.isArray(channels) || !channels.length || channels.some(id => typeof id !== 'string' || !id.trim())) {
     const message = 'config.senderChannels не заполнен корректно: реальные каналы Sender нужны для боевой доставки; добавьте их подключение в «Нужно от вас» перед запуском.'
     if (options['task-stage'] === 'launch' && nodes.some(node => node.kind === 'series')) error(message)
+    else if (design) warn(message)
     else warn(`${message} Продолжайте сборку и внутреннее тестирование через sender.transport.* с TestContext; реальные канал и тестовый контакт для него не нужны.`)
   }
-  if (nodes.some(node => node.kind === 'series') && ['test', 'launch'].includes(options['task-stage'])) {
-    const policy = ws.config?.mailings
-    if (typeof policy?.testOnly !== 'boolean') error('config.mailings.testOnly должен быть boolean перед тестом или запуском серии.')
-
-  }
+  if (ws.config?.mailings?.testOnly === true)
+    error('Общая настройка config.mailings.testOnly блокирует обычную доставку. Проверяй через TestContext; для обычных регистраций требуется false. При миграции сначала сверь активные рассылки и очереди.')
+  else if (nodes.some(node => node.kind === 'series') && typeof ws.config?.mailings?.testOnly !== 'boolean')
+    error('Для отправки через Mailings задай config.mailings.testOnly: false.')
   const vars = ws.config?.variables
   if (vars !== undefined && (!vars || typeof vars !== 'object' || Array.isArray(vars))) {
     error('config.variables должен быть объектом { key: { value, description } }')
@@ -462,29 +464,37 @@ check('table.changes', 'Защита схемы действующих табл�
   for (const issue of tableChangeStatus({ root, slug, stage: options['task-stage'] || 'build' }).errors) error(issue)
 })
 
+if (design) check('design.content', 'До согласования заполняется только структура', ({ error }) => {
+  const issue = designContentIssue(root, slug)
+  if (issue) error(issue)
+})
+
 check('map.sources', 'Узлы карты построены', ({ error, warn }) => {
   for (const n of nodes) {
     if (!n?.source) continue
     const src = norm(n.source)
     const abs = join(root, src)
+    if (n.kind === 'table' && !src.endsWith('.table.ts')) error(`${n.id}: source таблицы — файл *.table.ts`)
+    if (n.kind === 'agent' && !src.endsWith('.agent.json')) error(`${n.id}: source агента — файл *.agent.json`)
+    if (design) {
+      for (const issue of internalPageErrors(n)) error(issue)
+      if (!existsSync(abs)) warn(`${n.id}: исходник ${src} появится на этапе сборки`)
+      continue
+    }
     if (!existsSync(abs)) {
-      if (options['task-stage'] === 'design') warn(`${n.id}: исходник ${src} появится на этапе сборки`)
-      else error(`${n.id}: не построено — нет ${src}`)
+      error(`${n.id}: не построено — нет ${src}`)
       continue
     }
     const pageFile = isFile(abs) && abs.endsWith('.tsx') ? abs : join(abs, 'index.tsx')
     if (n.kind === 'page' && !isFile(pageFile)) error(`${n.id}: в ${src} нет страницы *.tsx`)
     else if (n.kind === 'page' && !hasExportedGetRoute(readFileSync(pageFile, 'utf8'))) {
       const message = `${n.id}: ${rel(root, pageFile)} не экспортирует маршрут app.get('/'); файл не станет страницей по одному default function`
-      if (options['task-stage'] === 'design') warn(message)
-      else error(message)
+      error(message)
     }
     if (n.pageMode !== undefined) {
       const pageSource = isFile(pageFile) ? readFileSync(pageFile, 'utf8') : ''
       for (const issue of internalPageErrors(n, pageSource)) error(issue)
     }
-    if (n.kind === 'table' && !src.endsWith('.table.ts')) error(`${n.id}: source таблицы — файл *.table.ts`)
-    if (n.kind === 'agent' && !src.endsWith('.agent.json')) error(`${n.id}: source агента — файл *.agent.json`)
     if (n.kind === 'series' && walk(abs).filter(f => f.endsWith('.message.yaml')).length === 0) {
       error(`${n.id}: в ${src} нет ни одного *.message.yaml`)
     }
@@ -499,12 +509,12 @@ check('route.files', 'Один маршрут на исходный файл', (
 })
 
 check('agents', 'Агенты процесса', ({ error, warn }) => {
-  const report = validateProcessAgents({ root, slug, map })
+  const report = validateProcessAgents({ root, slug, map, design })
   for (const issue of report.errors) error(issue)
   for (const issue of report.warnings) warn(issue)
 })
 
-check('agents.review', 'Независимое ревью помощников', ({ error, warn }) => {
+if (!design) check('agents.review', 'Независимое ревью помощников', ({ error, warn }) => {
   if (!validateProcessAgents({ root, slug, map }).enabled) return
   const result = agentReviewStatus({ root, slug })
   if (result.error) error(result.error)
@@ -1008,6 +1018,7 @@ check('letters', 'Письма шагов отправки и их переме�
   }
   // Каждое письмо процесса разобрано и кем-то отправляется
   for (const f of walk(join(root, lettersRoot)).filter(f => f.endsWith('.message.yaml'))) {
+    if (design && emptyDesignSource(f)) continue
     const p = rel(root, f)
     const res = loadYamlFile(f)
     if (res.parseError) {
@@ -1100,10 +1111,6 @@ check('letters.transport', 'Маршрут шаблонов через Automatio
   const ws = JSON.parse(readFileSync(join(dir, '.workspace.json'), 'utf8'))
   const policy = ws.config?.mailings
   if (!policy || typeof policy.testOnly !== 'boolean') return error('Нужен config.mailings.testOnly (boolean) в .workspace.json')
-  if (!Array.isArray(policy.testContacts) || policy.testContacts.some(c => !c || typeof c.type !== 'string' || !c.type.trim() || typeof c.value !== 'string' || !c.value.trim()))
-    error('config.mailings.testContacts должен содержать контакты {type, value}')
-  else if (policy.testOnly && !policy.testContacts.length) warn('Тестовые контакты не заданы: обычная отправка Mailings во внешний канал будет заблокирована. Сборка и внутренний транспорт sender.transport.* с TestContext доступны без реальных контактов.')
-  if (!policy.testOnly) warn('config.mailings.testOnly = false — SDK разрешает боевые отправки')
 })
 
 check('sdk.writes', 'Нет записи файлов через SDK', ({ error }) => {
@@ -1118,7 +1125,7 @@ check('client.modules', 'Клиентские модули Vue доступны 
   for (const issue of validateClientModules({ root, slug }).errors) error(issue)
 })
 
-check('tests', 'Сценарии тестирования tests/plan.yaml', () => { readTestPlan(root, slug, map) })
+check('tests', 'Сценарии тестирования tests/plan.yaml', () => { readTestPlan(root, slug, map, { design }) })
 
 check('plan', 'План PLAN.md', ({ error, warn }) => {
   const f = join(dir, 'PLAN.md')
@@ -1141,10 +1148,10 @@ check('tasks', `Рабочие задачи (${options['task-stage'] || 'build'}
 check('creative', 'Задания страниц и серий', ({ error, warn }) => {
   const work = getWorkReport()
   if (!work.enabled || !map?.nodes) return
-  const future = (options['task-stage'] || 'build') === 'design'
+  if (design) return
   for (const node of map.nodes.filter(needsCreativeReview)) {
     const result = creativeStatus({ root, slug, nodeId: node.id })
-    for (const issue of result.errors) (future ? warn : error)(`${node.id}: ${issue}`)
+    for (const issue of result.errors) error(`${node.id}: ${issue}`)
   }
 })
 
@@ -1203,17 +1210,17 @@ if ((options['task-stage'] || 'build') !== 'design') check('owner.plan', 'Реш
   if (decision.status !== 'ready') error(decision.error || decision.status)
   else if (decision.authority === 'delegated-test') warn('Учебное решение исполнителя по поручению владельца; не является согласованием боевого процесса.')
 })
-if (options['task-stage'] === 'launch') check('owner.launch', 'Решение о запуске', ({ error, warn }) => {
+if (options['task-stage'] === 'launch') check('owner.launch', 'Решение о запуске', ({ error }) => {
   const decision = ownerDecisionStatus({ root, slug, kind: 'launch' })
-  if (decision.status !== 'ready') error(decision.error || decision.status)
-  else if (decision.authority === 'delegated-test') warn('Разрешён только учебный testOnly-запуск; для боевого нужен ответ владельца.')
+  if (decision.status === 'rehearsal') error('Разрешена репетиция. Для открытия процесса клиентам нужно решение владельца.')
+  else if (decision.status !== 'ready') error(decision.error || decision.status)
 })
 let testingReport = { status: 'not-checked', cases: [], errors: [], syncErrors: [] }
 try {
   if (['test', 'launch'].includes(options['task-stage']))
     testingReport = testStatus({ root, slug, map, remote: true })
-  else if (!options['no-snapshot'] && isFile(join(dir, 'tests/plan.yaml'))) {
-    const plan = readTestPlan(root, slug, map)
+  else if (!design && !options['no-snapshot'] && isFile(join(dir, 'tests/plan.yaml'))) {
+    const plan = readTestPlan(root, slug, map, { design })
     testingReport = plan.cases.length ? testStatus({ root, slug, map, remote: true })
       : { status: 'not-planned', cases: [], errors: [], syncErrors: [] }
   }
@@ -1221,7 +1228,7 @@ try {
 if (['test', 'launch'].includes(options['task-stage'])) check('process.testing', 'Тестирование текущей версии процесса', ({ error }) => {
   for (const issue of testingReport.errors) error(issue)
 })
-if (!options['no-snapshot']) check('board.testing', 'Сценарии на доске соответствуют плану', ({ error }) => {
+if (!design && !options['no-snapshot']) check('board.testing', 'Сценарии на доске соответствуют плану', ({ error }) => {
   for (const issue of testingReport.syncErrors) error(issue)
   if (testingReport.status === 'unavailable') error(`Статусы тестирования не подтверждены: ${testingReport.errors.join('; ')}`)
 })
@@ -1290,6 +1297,17 @@ if (!options['no-snapshot']) check('board.status', 'Статусы блоков 
   if (!construction) return error('Статусы сборки на доске не подтверждены. Прочитайте доску и устраните причину недоступности.')
   for (const issue of construction.errors) error(issue)
 })
+if (!options['no-snapshot'] && (options['task-stage'] || 'build') !== 'design') {
+  check('board.acceptance', 'Все блоки прошли приёмку на доске', ({ error }) => {
+    const issue = outstandingBoardAcceptance(snapshotResult)
+    if (issue) error(issue)
+  })
+  check('board.process-acceptance', 'Общая проверка процесса на доске', ({ error }) => {
+    if (!snapshotResult.verified || snapshotResult.construction?.status !== 'current' ||
+        snapshotResult.construction.processAcceptance !== 'passed')
+      error('Заверши общее ревью и проверки процесса, опубликуй результат и сверь его с доской.')
+  })
+}
 if (options['task-stage'] === 'launch') check('owner.launch.board', 'Согласование текущей доски владельцем', ({ error }) => {
   if (!snapshotResult.verified) return error('Нельзя подтвердить показанную владельцу доску без актуального снимка.')
   const decision = ownerDecisionStatus({ root, slug, kind: 'launch', currentBoardRevision: snapshotResult.boardRevision })
