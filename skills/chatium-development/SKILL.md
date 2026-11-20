@@ -73,7 +73,7 @@ For a business event that needs staff action—such as a submitted lead or faile
 | Define/change a table, write records, handle Money or links | [heap.md](heap.md) |
 | Filter, paginate, search, aggregate, or batch-load records | [heap-filter.md](heap-filter.md) |
 | Enforce access, authenticate, or work with profiles/users | [auth.md](auth.md) |
-| Declare application permissions and roles, check a permission, or manage role assignments and custom roles | [RBAC](rbac.md) |
+| Declare application permissions and roles, check a permission, share access to individual objects (per-resource permissions), or manage role assignments and custom roles | [RBAC](rbac.md) |
 | Upload, download, read or create a file, obtain file URLs, or use `@app/storage` | [storage.md](storage.md) |
 | Work with «Хранилище», «Файловое хранилище», «Мой диск» / Vault: find/reuse existing materials, folders and their settings/covers, registered files, public folder links, or a file picker | [vault.md](vault.md) |
 | Schedule or cancel background work | [jobs.md](jobs.md) |
