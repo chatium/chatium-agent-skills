@@ -10,6 +10,11 @@ The server SDK applies the caller's Vault access rules. Creating folders, regist
 
 Folder visibility and permission to manage a folder differ. An access error is not evidence of an absent application. Use the public SDK and report the inaccessible target; direct reads/writes of Vault's private Heap tables bypass its model and access logic.
 
+Vault is moving accounts from the per-folder `access` setting to per-folder access grants with three levels: Viewer, Editor and Manager. Migration happens per account and is not rolled out yet, so both access models exist and the SDK does not report which one an account uses. Write code that works under both: treat an access error as the answer for that caller and target, and do not infer rights from who created a folder. On a migrated account:
+
+- The creator of a subfolder has no special rights on it. Rights come from grants and from owning the top folder of its tree.
+- A nested folder whose own `access` is `private` or `admins` stops inheritance from above. Grants on parent folders, a parent's public folder link and a parent's `publicLinks` flag do not reach that folder or anything below it.
+
 Inspect the current exported `.d.ts` before use. Older installed typings may include widgets/PDF only: refresh the SDK declarations, and verify that the installed app version supports the server methods. Source exports tagged `@internal`, including knowledge-indexing helpers and `recognizePdf`, are not part of this public contract.
 
 ## Identifiers and results
@@ -36,7 +41,7 @@ All methods below are server-side named exports from `@vault/sdk`, take `ctx` fi
 
 A `VaultPage` is `{ items, offset, limit, total, hasMore }`, with a default limit of 100 and maximum 500. Continue at `page.offset + page.items.length` while `hasMore`, stopping on an unexpectedly empty page instead of looping indefinitely.
 
-Omitting `parentId` (or passing `null`) lists **visible tree roots**, which can include a shared descendant whose parent is hidden. With a parent ID, only its immediate child folders are returned. Omitting `folderId` (or passing `null`) lists **the caller's personal root files**; with a folder ID, only files directly in that folder are returned. Neither method recursively lists the whole account. Traverse accessible folders explicitly only when the task needs descendants, retaining visited IDs because a visible root can be a descendant.
+Omitting `parentId` (or passing `null`) lists **visible tree roots**, which can include a shared descendant whose parent is hidden. With a parent ID, only its immediate child folders that the caller may open are returned; `total` and paging count only those. Omitting `folderId` (or passing `null`) lists **the caller's personal root files**; with a folder ID, only files directly in that folder are returned. Neither method recursively lists the whole account. Traverse accessible folders explicitly only when the task needs descendants, retaining visited IDs because a visible root can be a descendant.
 
 Resolve a named folder through the visible hierarchy and confirm the target when names are ambiguous. Reuse its ID. To download a registered file:
 
@@ -141,19 +146,21 @@ Folder rename/move/delete checks management rights. Move rejects the folder itse
 | --- | --- |
 | `name` | Nonempty trimmed string |
 | `description` | Plain text, trimmed, at most 10,000 characters; `null` or an empty string clears it, returning `null`. Newlines remain; Vault and published folder pages display it as text |
-| `access` | `'private'`, `'staff'`, `'admins'` or `'inherit'`; inheritance is valid only for a nested folder and uses the nearest ancestor setting. Changing it does not revoke public publications |
+| `access` | Deprecated shortcut: `'private'`, `'staff'`, `'admins'` or `'inherit'`; inheritance is valid only for a nested folder and uses the nearest ancestor setting. On migrated accounts it sets this folder's grants, see below. Changing it does not revoke public publications |
 | `position` | Integer ≥ 0 for display order within the parent |
-| `publicLinks` | Boolean controlling new uploads through Vault. Any ancestor's `true` enables public uploads in descendants; a child's `false` leaves that inheritance active. Existing hashes retain their access mode; an independent Storage upload uses its own `protected` option |
+| `publicLinks` | Boolean controlling new uploads through Vault. Any ancestor's `true` enables public uploads in descendants; a child's `false` leaves that inheritance active. On a migrated account the inheritance stops at a nested folder with its own `private` or `admins` value; that folder's own flag still applies. Existing hashes retain their access mode; an independent Storage upload uses its own `protected` option |
 | `coverHash` | Existing public image hash or `null` to clear |
 | `coverFileId` | Visible Vault image **record ID**, including one in another folder, or `null` to clear |
 | `published` | Boolean: `true` creates/keeps the public folder link; `false` revokes it |
 | `allowVideoDownload` | Boolean controlling the video download button in the publication; requires an existing publication or `published: true` in the same call |
 
+The returned `access` is the stored value. On a migrated account, writing `access` stores the value and then replaces this one folder's role-wide grants to match it: `staff` gives every Staff user Editor (view and change content), `admins` gives Admins Manager, `private` and `inherit` give no role-wide grant. On a nested folder, `private` and `admins` also stop inheritance from above, while `staff` and `inherit` keep it. Grants to individual users and custom roles on the folder stay unchanged, and other folders are not touched.
+
 Pass only one of `coverHash` / `coverFileId`. Selecting `coverFileId` permanently makes the image public through `makeFilePublic`, with `createPublicCopy` as fallback. Choose a cover whose public use is authorized. Clearing the cover removes its assignment, without deleting or protecting the image again; a same-call `published: true` may automatically select a replacement image. Metadata, cover and publication writes are sequential; a later failure may leave earlier fields updated. Read `getVaultFolder` and, for publication changes, `getVaultFolderPublication` before retrying. `publicLinks` controls uploads; `published` controls the public folder page. `createVaultFolder` accepts name/parent/description; other settings use a subsequent update with the created ID.
 
 ## Publish a folder
 
-When the user asks to publish a Vault folder or manage its public link, use `updateVaultFolder`. Publishing exposes its current files and nested folders, including files added later, to anyone with the link. For a temporary download of one file, use [Storage shared URLs](storage.md#protected-files-and-shared-urls). Writes and publication reads require folder management rights; creating a publication also requires a real user.
+When the user asks to publish a Vault folder or manage its public link, use `updateVaultFolder`. Publishing exposes its current files and nested folders, including files added later, to anyone with the link. On a migrated account the link stops at a nested folder with its own `private` or `admins` value: that folder and everything below it are not listed or reachable through the parent's link; publish it separately when the user wants it public. For a temporary download of one file, use [Storage shared URLs](storage.md#protected-files-and-shared-urls). Writes and publication reads require folder management rights; creating a publication also requires a real user.
 
 | Intent | Call | Publication result |
 | --- | --- | --- |
