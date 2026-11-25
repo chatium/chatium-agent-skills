@@ -36,6 +36,10 @@ is missing, use the [plugin skill contract](../chatium-creators/references/skill
 It covers `.skills`, names shared across plugins and account verification independently
 of creator cabinet setup.
 
+For paid plugin access, Store user limits, purchased options and consumable quotas,
+read [Store SDK inside the plugin](../chatium-creators/references/plugin-commerce-sdk.md).
+For tariff setup, use [the creator cabinet guide](../chatium-creators/references/commerce.md).
+
 ## Notifications for staff and administrators
 
 For **receiving staff notifications in code**, read [Notification handlers](notification-handlers.md): typed static manifests declare app.function destinations; the current staff user explicitly selects them via UI/SDK. It is not a separate producer API or a replacement for `sendNotification`.
