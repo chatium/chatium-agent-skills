@@ -35,6 +35,7 @@ python3 <skill>/scripts/package_template.py --root ./prepared-solution \
 
 1. Прочитай категории через `getCreatorCatalogOptions` и имеющиеся шаблоны.
 2. Создай черновик `createCreatorTemplate(ctx,{slug,fields:{title,...}})`, если его ещё нет.
+   Если у шаблона есть [лендинг решения](lifecycle.md#лендинг-решения), передай его URL в `fields.landingUrl`.
    Slug шаблона — 2–80 строчных букв/цифр/дефисов, начинается буквой или цифрой.
 3. Вызови `createCreatorTemplateUpload(ctx)`. URL принадлежит Store **в исходном аккаунте**,
    действует 10 минут и требует multipart POST, поле `Filedata`. Сохрани результат exec
@@ -65,7 +66,7 @@ python3 <skill>/scripts/package_template.py --root ./prepared-solution \
 при отсутствии действующих прав — `[]`. Разрешён серверному коду аккаунта, плагинам и jobs,
 не требует Creator connection. Через CLI нужен `chatium exec --write` для выдачи ссылок.
 Других параметров, включая accountId, нет. Основные поля: id/slug/title, archiveUrl,
-urlExpiresAt, revision, finishAt (null = бессрочно), shortDescription/description, creator, categoryIds,
+urlExpiresAt, revision, finishAt (null = бессрочно), shortDescription/description, landingUrl (или null), creator, categoryIds,
 languages, contentMode, skills и updatedAt. Ссылка действует до 10 минут, но не дольше
 оставшегося доступа; после истечения вызови SDK заново. Ошибку чтения не заменяй `[]`.
 
