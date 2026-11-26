@@ -71,7 +71,7 @@ imageHash|null, acceptedAgreement (только чтение), updatedAt. Patch 
 сохраняет прежнее значение. owner/команда/реквизиты/согласие в patch не входят.
 
 Карточка (`CreatorSolution`) содержит kind/id/slug/title/shortDescription/description,
-iconHash|null, imageHashes, categoryIds, languages, supportsSkills, hasFunctionality,
+landingUrl (HTTPS-адрес или null), iconHash|null, imageHashes, categoryIds, languages, supportsSkills, hasFunctionality,
 skills, updatedAt, isPublished, reviewRequestedAt|null, revision|null, hasArchive,
 pluginId|null. Архивный hash в DTO не раскрывается, для доступа есть отдельный метод.
 
@@ -81,6 +81,12 @@ supportsSkills, hasFunctionality, skills (до 100). Поддержка скил
 функциональность включена. Хотя бы одно должно оставаться включённым. При выключении
 supportsSkills список навыков очищается; при hasFunctionality=false функциональные
 категории очищаются. Не отправляй эти флаги без намерения изменить соответствующее свойство.
+
+В `fields` нового шаблона и `patch` обоих видов решений можно указать
+`landingUrl` — полный HTTPS-адрес до 2000 символов без логина и пароля.
+Пропуск в patch сохраняет ссылку, `null` или пустая строка её удаляет.
+При `STORE_CREATOR_INVALID_LANDING_URL` исправь адрес. Настройка показа
+описана в [инструкции по карточке](lifecycle.md#лендинг-решения).
 
 SDK обновления карточки не меняет slug, владельца, native PID, тарифы, платежные признаки,
 системное меню или публикацию. Изображения — ранее загруженные доступные для витрины image hashes;
