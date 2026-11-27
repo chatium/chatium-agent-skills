@@ -149,3 +149,23 @@ return await updateCreatorSolution(ctx, {
 при конфликте не создавай `-2` автоматически; найди свою созданную карточку по списку.
 Регистрация повторяет ту же пару directory/slug. Для отправленной заявки достаточно
 свежего чтения reviewRequestedAt. Не инициируй бесконечные retries.
+
+## Включить шаблоны в приложение
+
+Найди нужные карточки в `listCreatorSolutions(ctx, { kind: 'template' })` своего
+профиля. При большом списке используй `limit` и `offset`. Выбери ID карточек по
+названиям. Для просьбы «добавь шаблон» сохрани прежний состав.
+
+```ts
+const app = await getCreatorSolution(ctx, { kind: 'plugin', id: applicationCardId })
+const linkedTemplateIds = [...new Set([...(app.linkedTemplateIds ?? []), templateCardId])]
+return await updateCreatorSolution(ctx, {
+  kind: 'plugin', id: app.id, expectedUpdatedAt: app.updatedAt, patch: { linkedTemplateIds }
+})
+```
+
+Проверь результат повторным чтением. Чтобы убрать шаблон, исключи его ID из массива.
+Пустой массив очищает состав. В кабинете это раздел «Шаблоны в составе приложения».
+Клиент получает опубликованные шаблоны автоматически через `getAvailableTemplates(ctx)`
+на время установки и действия тарифа приложения. Отдельно приобретённый доступ
+к тому же шаблону действует на собственных условиях.

@@ -1,4 +1,4 @@
 interface:
   display_name: "Опубликовать в каталоге Chatium"
-  short_description: "Кабинет креатора, плагины, шаблоны и поддержка скиллов"
+  short_description: "Кабинет креатора, приложения, шаблоны и скиллы"
   icon_small: "./assets/icon.svg"
