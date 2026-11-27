@@ -36,6 +36,9 @@ is missing, use the [plugin skill contract](../chatium-creators/references/skill
 It covers `.skills`, names shared across plugins and account verification independently
 of creator cabinet setup.
 
+When installing a skill from a received ZIP template, follow
+[template skill installation](../chatium-creators/references/templates.md#установить-скилл-из-шаблона).
+
 For paid plugin access, Store user limits, purchased options and consumable quotas,
 read [Store SDK inside the plugin](../chatium-creators/references/plugin-commerce-sdk.md).
 For tariff setup, use [the creator cabinet guide](../chatium-creators/references/commerce.md).
